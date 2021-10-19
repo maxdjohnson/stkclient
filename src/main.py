@@ -1,3 +1,4 @@
+import readline
 import dataclasses
 from .storage import JSONConfig
 from .auth import Auth, DeviceInfo, register_device_with_token

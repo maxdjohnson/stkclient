@@ -12,7 +12,7 @@ class Auth:
         self._verifier = base64_url_encode(os.urandom(32))
 
     def get_url(self) -> str:
-        challenge = base64_url_encode(sha256(self._verifier))
+        challenge = base64_url_encode(sha256(self._verifier.encode('utf-8')))
         q = {
             'openid.claimed_id': 'http://specs.openid.net/auth/2.0/identifier_select',
             'openid.ns.oa2': 'http://www.amazon.com/ap/ext/oauth/2',
@@ -37,7 +37,7 @@ class Auth:
     def handle_redirect_url(self, redirect_url: str) -> str:
         u = urllib.parse.urlparse(redirect_url)
         q = urllib.parse.parse_qs(u.query)
-        code = q['openid.oa2.authorization_code']
+        code = q['openid.oa2.authorization_code'][0]
         body = {
             'app_name': 'Unknown',
             'client_domain': 'DeviceLegacy',
@@ -52,8 +52,18 @@ class Auth:
             'Accept-Language': 'en-US',
             'x-amzn-identity-auth-domain': 'api.amazon.com',
             'User-Agent': 'Mozilla/5.0',
-        }, json=body)
-        return r.json()["access_token"]
+        }, json=body, verify=False)
+        try:
+            r.raise_for_status()
+        except:
+            print(r.text)
+            raise
+        res = r.json()
+        try:
+            return res["access_token"]
+        except KeyError:
+            print(res)
+            raise
 
 
 @dataclass(frozen=True)
@@ -94,17 +104,17 @@ def register_device_with_token(access_token: str) -> DeviceInfo:
         "auth_token_type": "AccessToken",
         "software_version": "253",
         "os_version": "MacOSX_10.14.6_x64",
-        "device_model": "Max’s MacBook Pro",
+        "device_model": "Maxs MacBook Pro",
     }
     body = f"""<?xml version='1.0' encoding='UTF-8'?>
 <request><parameters><deviceType>{q["device_type"]}</deviceType><deviceSerialNumber>{q["device_serial_number"]}</deviceSerialNumber><pid>{q["pid"]}</pid><authToken>{q["auth_token"]}</authToken><authTokenType>{q["auth_token_type"]}</authTokenType><softwareVersion>{q["software_version"]}</softwareVersion><os_version>{q["os_version"]}</os_version><device_model>{q["device_model"]}</device_model></parameters></request>"""
     r = requests.post('https://firs-ta-g7g.amazon.com/FirsProxy/registerDeviceWithToken', headers={
         'Content-Type': 'text/xml',
-        'Expect:': '',
+        'Expect': '',
         'Accept-Language': 'en-US,*',
         'User-Agent': 'Mozilla/5.0',
-    }, body=body)
-    res = safe_xml_fromstring(r.text)
+    }, data=body, verify=False)
+    res = safe_xml_fromstring(r.text.encode('utf-8'))
     info = {}
     for el in res:
         info[el.tag] = el.text
