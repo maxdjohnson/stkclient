@@ -9,6 +9,7 @@ python = "^3.7"
 PyQt5 = "^5.15.5"
 requests = "^2.26.0"
 lxml = "^4.6.3"
+rsa = "^4.7.2"
 
 [tool.poetry.dev-dependencies]
 PyQt5-stubs = "^5.15.2"

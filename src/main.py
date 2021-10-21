@@ -1,7 +1,40 @@
 import readline
+import hashlib
+from typing import Optional, Any, List, Mapping
+import requests
 import dataclasses
 from .storage import JSONConfig
-from .auth import Auth, DeviceInfo, register_device_with_token
+from .auth import Auth, DeviceInfo, Signer, register_device_with_token
+import json
+
+
+
+@dataclasses.dataclass(frozen=True)
+class OwnedDevice:
+    device_capabilities: Mapping[str, bool]
+    device_name: str
+    device_serial_number: str
+
+    @staticmethod
+    def from_dict(d: Mapping[str, Any]) -> 'OwnedDevice':
+        return OwnedDevice(
+            device_capabilities=d["deviceCapabilities"],
+            device_name=d["deviceName"],
+            device_serial_number=d["deviceSerialNumber"],
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class OwnedDevicesResponse:
+    owned_devices: List[OwnedDevice]
+    status_code: int
+
+    @staticmethod
+    def from_dict(d: Mapping[str, Any]) -> 'OwnedDevicesResponse':
+        return OwnedDevicesResponse(
+            owned_devices=[OwnedDevice.from_dict(v) for v in d["ownedDevices"]],
+            status_code=d["statusCode"],
+        )
 
 
 def main():
@@ -18,6 +51,33 @@ def main():
         s["device_info"] = dataclasses.asdict(device_info)
     device_info = DeviceInfo.from_dict(s["device_info"])
     print(device_info)
+    s = Signer.from_device_info(device_info)
+    res = get_list_of_owned_devices(s)
+    print(res)
+
+
+def get_list_of_owned_devices(s: Signer) -> OwnedDevicesResponse:
+    url = "https://stkservice.amazon.com/GetListOfOwnedDevices"
+    data = json.dumps({
+        "appName": "ShellExtension",
+        "appVersion": "1.1.1.253",
+        "os": "MacOSX_10.14.6_x64",
+        "osArchitecture": "x64",
+    }, indent=4)
+    r = requests.post(url, headers={
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-ADP-Request-Digest': s.digest_header_for_request('POST', url, data),
+        'X-ADP-Authentication-Token': s.adp_token,
+        'Accept-Language': 'en-US,*',
+        'User-Agent': 'Mozilla/5.0',
+    }, data=data)
+    try:
+        r.raise_for_status()
+    except:
+        print(r.text)
+        raise
+    return OwnedDevicesResponse.from_dict(r.json())
 
 
 if __name__ == "__main__":
