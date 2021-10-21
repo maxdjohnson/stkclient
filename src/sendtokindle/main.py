@@ -1,12 +1,10 @@
-import readline
-import hashlib
 from typing import Optional, Any, List, Mapping
 import requests
 import dataclasses
 from .storage import JSONConfig
-from .auth import Auth, DeviceInfo, Signer, register_device_with_token
+from .auth import Auth, DeviceInfo, register_device_with_token
+from .signer import Signer
 import json
-
 
 
 @dataclasses.dataclass(frozen=True)
@@ -38,7 +36,7 @@ class OwnedDevicesResponse:
 
 
 def main():
-    s = JSONConfig("storage.json", ".")
+    s = JSONConfig("storage.json", "")
     if s.get("access_token") is None:
         auth = Auth()
         url = auth.get_url()

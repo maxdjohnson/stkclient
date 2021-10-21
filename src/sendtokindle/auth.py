@@ -1,13 +1,12 @@
 import os
-import datetime
-import rsa
-from typing import Optional, Mapping, Any, cast
+from typing import Optional, Mapping, Any
 from dataclasses import dataclass, fields
 import requests
 import urllib.parse
 import hashlib
 import base64
-import lxml.etree
+from .xml import safe_xml_fromstring
+
 
 class Auth:
     def __init__(self):
@@ -85,43 +84,13 @@ class DeviceInfo:
         fieldnames = {f.name for f in fields(DeviceInfo)}
         return DeviceInfo(** {k: v for k, v in d.items() if k in fieldnames})
 
-
-@dataclass(frozen=True)
-class Signer:
-    device_private_key: rsa.PrivateKey
-    adp_token: str
-
     @staticmethod
-    def from_device_info(d: DeviceInfo) -> 'Signer':
-        return Signer(
-            device_private_key=rsa.PrivateKey.load_pkcs1(d.device_private_key.encode('utf-8')),
-            adp_token=d.adp_token,
-        )
-
-    def digest_header_for_request(self, method: str, url: str, post_data: str, signing_date: Optional[str] = None) -> str:
-        if signing_date is None:
-            signing_date = get_signing_date()
-        sig_data = self.make_digest_data_for_request(
-            method,
-            url,
-            post_data,
-            signing_date
-        )
-        digest = sha256(sig_data)
-        encrypted_bytes = rsa.encrypt(digest, cast(rsa.PublicKey, self.device_private_key))
-        bytes64 = base64.b64encode(encrypted_bytes).decode('utf-8')
-        return f"{bytes64}:{signing_date}"
-
-    def make_digest_data_for_request(self, method: str, url: str, post_data: str, signing_date: Optional[str] = None) -> bytes:
-        if signing_date is None:
-            signing_date = get_signing_date()
-        sig_data = "\n".join([method, url, signing_date, post_data, self.adp_token])
-        return sig_data.encode("utf-8")
-
-
-# 2021-10-09T05:02:38Z
-def get_signing_date():
-    return datetime.datetime.utcnow().replace(microsecond=0, tzinfo=datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
+    def from_xml(s: str) -> 'DeviceInfo':
+        res = safe_xml_fromstring(s.encode('utf-8'))
+        info = {}
+        for el in res:
+            info[el.tag] = el.text
+        return DeviceInfo.from_dict(info)
 
 
 def register_device_with_token(access_token: str) -> DeviceInfo:
@@ -155,11 +124,7 @@ def register_device_with_token(access_token: str) -> DeviceInfo:
         'Accept-Language': 'en-US,*',
         'User-Agent': 'Mozilla/5.0',
     }, data=body, verify=False)
-    res = safe_xml_fromstring(r.text.encode('utf-8'))
-    info = {}
-    for el in res:
-        info[el.tag] = el.text
-    return DeviceInfo.from_dict(info)
+    return DeviceInfo.from_xml(r.text)
 
 
 def base64_url_encode(s: bytes) -> str:
@@ -170,23 +135,3 @@ def sha256(s: bytes) -> bytes:
     m = hashlib.sha256()
     m.update(s)
     return m.digest()
-
-
-# resolving of SYSTEM entities is turned off as entities can cause
-# reads of local files, for example:
-# <!DOCTYPE foo [ <!ENTITY passwd SYSTEM "file:///etc/passwd" >]>
-
-
-class Resolver(lxml.etree.Resolver):
-    def resolve(self, url, id, context):
-        return self.resolve_string('', context)
-
-
-def create_parser(recover, encoding=None):
-    parser = lxml.etree.XMLParser(recover=recover, no_network=True, encoding=encoding)
-    parser.resolvers.add(Resolver())
-    return parser
-
-
-def safe_xml_fromstring(string_or_bytes, recover=True):
-    return lxml.etree.fromstring(string_or_bytes, parser=create_parser(recover))
