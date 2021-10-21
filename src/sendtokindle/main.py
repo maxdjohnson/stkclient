@@ -57,10 +57,12 @@ def main():
 def get_list_of_owned_devices(s: Signer) -> OwnedDevicesResponse:
     path = "/GetListOfOwnedDevices"
     data = json.dumps({
-        "appName": "ShellExtension",
-        "appVersion": "1.1.1.253",
-        "os": "MacOSX_10.14.6_x64",
-        "osArchitecture": "x64",
+        "ClientInfo": {
+            "appName": "ShellExtension",
+            "appVersion": "1.1.1.253",
+            "os": "MacOSX_10.14.6_x64",
+            "osArchitecture": "x64"
+        }
     }, indent=4)
     r = requests.post("https://stkservice.amazon.com" + path, headers={
         'Accept': 'application/json',
