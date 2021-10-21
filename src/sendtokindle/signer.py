@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import rsa
+from rsa import core, transform
 import base64
 from typing import Optional, Mapping, Any, cast
 from dataclasses import dataclass
@@ -29,7 +30,11 @@ class Signer:
             signing_date
         )
         digest = sha256(sig_data)
-        encrypted_bytes = rsa.encrypt(digest, cast(rsa.PublicKey, self.device_private_key))
+        pad = bytes.fromhex("01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00")
+        padded = pad + digest
+        payload = transform.bytes2int(padded)
+        encrypted = core.encrypt_int(payload, self.device_private_key.d, self.device_private_key.n)
+        encrypted_bytes = transform.int2bytes(encrypted, 256)
         bytes64 = base64.b64encode(encrypted_bytes).decode('utf-8')
         return f"{bytes64}:{signing_date}"
 
