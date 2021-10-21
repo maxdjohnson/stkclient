@@ -57,21 +57,21 @@ def main():
 
 
 def get_list_of_owned_devices(s: Signer) -> OwnedDevicesResponse:
-    url = "https://stkservice.amazon.com/GetListOfOwnedDevices"
+    path = "/GetListOfOwnedDevices"
     data = json.dumps({
         "appName": "ShellExtension",
         "appVersion": "1.1.1.253",
         "os": "MacOSX_10.14.6_x64",
         "osArchitecture": "x64",
     }, indent=4)
-    r = requests.post(url, headers={
+    r = requests.post("https://stkservice.amazon.com" + path, headers={
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'X-ADP-Request-Digest': s.digest_header_for_request('POST', url, data),
+        'X-ADP-Request-Digest': s.digest_header_for_request('POST', path, data),
         'X-ADP-Authentication-Token': s.adp_token,
         'Accept-Language': 'en-US,*',
         'User-Agent': 'Mozilla/5.0',
-    }, data=data)
+    }, data=data, verify=False)
     try:
         r.raise_for_status()
     except:

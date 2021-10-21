@@ -99,6 +99,8 @@ class Signer:
         )
 
     def digest_header_for_request(self, method: str, url: str, post_data: str, signing_date: Optional[str] = None) -> str:
+        if signing_date is None:
+            signing_date = get_signing_date()
         sig_data = self.make_digest_data_for_request(
             method,
             url,
