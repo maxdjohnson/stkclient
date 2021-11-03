@@ -1,4 +1,6 @@
 from typing import Optional, Any, List, Mapping
+import sys
+import os.path
 import requests
 import dataclasses
 from .storage import JSONConfig
@@ -8,7 +10,10 @@ from .api import STKClient, upload_file
 import json
 
 
-def main():
+def main(file_path):
+    file_size = os.path.getsize(file_path)
+    author="calibre"
+    title="Hacker Newsletter"
     s = JSONConfig("storage.json", "")
     if s.get("access_token") is None:
         auth = Auth()
@@ -23,7 +28,10 @@ def main():
     device_info = DeviceInfo.from_dict(s["device_info"])
     print(device_info)
     c = STKClient(Signer.from_device_info(device_info))
-    print(c.get_list_of_owned_devices())
+    devices = c.get_list_of_owned_devices()
+    remote = c.get_upload_url(file_size)
+    upload_file(remote.upload_url, file_path)
+    c.send_to_kindle(remote.stk_token, [d.device_serial_number for d in devices.owned_devices], author=author, title=title)
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1])

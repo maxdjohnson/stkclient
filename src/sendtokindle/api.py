@@ -58,8 +58,8 @@ class SendToKindleResponse:
     status_code: int
 
     @staticmethod
-    def from_dict(d: Mapping[str, Any]) -> 'GetUploadUrlResponse':
-        return GetUploadUrlResponse(
+    def from_dict(d: Mapping[str, Any]) -> 'SendToKindleResponse':
+        return SendToKindleResponse(
             sku=d["sku"],
             status_code=d["statusCode"],
         )
@@ -119,7 +119,7 @@ class STKClient:
             "deliveryMechanism": "WIFI",
             "outputFormat": "MOBI",
             "stkToken": stk_token,
-            "targetDevices": target_devices,
+            "targetDevices": target_device_serial_numbers,
         })
         return SendToKindleResponse.from_dict(res)
 
