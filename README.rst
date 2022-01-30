@@ -36,10 +36,14 @@ Send To Kindle
    :alt: Black
 
 
+``stkclient`` implements a client for amazon's "Send to Kindle" service. It allows python programs to
+send files to a kindle device without the 10mb limit that applies to email files.
+
 Features
 --------
 
-* TODO
+* OAuth-based authorization
+* Send large (>10MB) files to Kindle devices
 
 
 Requirements
@@ -58,17 +62,38 @@ You can install *Send To Kindle* via pip_ from PyPI_:
    $ pip install stkclient
 
 
-Usage
------
+Creating a Client
+-----------------
 
-Please see the `Command-line Reference <Usage_>`_ for details.
+Clients are created using the Authenticator class. Currently the only supported authentication mechanism is OAuth2:
+
+.. code:: python
+
+   a = stkclient.OAuth2()
+   signin_url = a.get_signin_url()
+   # Open `signin_url` in a browser, sign in and authorize the application, pass the final redirect_url below
+   client = a.create_client(redirect_url)
+
+Once a client is created, it can be serialized and deserialized using ``Client.load`` / ``Client.loads`` and ``client.dump`` / ``client.dumps``
+
+.. code:: python
+
+   with open('client.json', 'w') as f:
+       client.dump(f)
+   with open('client.json', 'r') as f:
+       client = stkclient.Client.load(f)
 
 
-Contributing
-------------
+Sending a File
+--------------
 
-Contributions are very welcome.
-To learn more, see the `Contributor Guide`_.
+Once you have a Client object, you can list devices and send files to specified devices.
+
+.. code:: python
+
+   devices = client.get_list_of_owned_devices()
+   destinations = [d.device_serial_number for d in devices.owned_devices]
+   client.send_to_kindle(filepath, destinations, author=author, title=title)
 
 
 License
@@ -78,25 +103,13 @@ Distributed under the terms of the `MIT license`_,
 *Send To Kindle* is free and open source software.
 
 
-Issues
-------
-
-If you encounter any problems,
-please `file an issue`_ along with a detailed description.
-
-
 Credits
 -------
 
-This project was generated from `@cjolowicz`_'s `Hypermodern Python Cookiecutter`_ template.
+Project structure from `@cjolowicz`_'s `Hypermodern Python Cookiecutter`_ template.
 
 .. _@cjolowicz: https://github.com/cjolowicz
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _MIT license: https://opensource.org/licenses/MIT
 .. _PyPI: https://pypi.org/
 .. _Hypermodern Python Cookiecutter: https://github.com/cjolowicz/cookiecutter-hypermodern-python
-.. _file an issue: https://github.com/maxdjohnson/stkclient/issues
 .. _pip: https://pip.pypa.io/
-.. github-only
-.. _Contributor Guide: CONTRIBUTING.rst
-.. _Usage: https://stkclient.readthedocs.io/en/latest/usage.html
