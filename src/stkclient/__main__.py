@@ -48,12 +48,15 @@ def main() -> None:
     parser_send.add_argument(
         "--author", type=str, required=True, help="author of the work (required)"
     )
+    parser_send.add_argument(
+        "--format", type=str, required=True, help='file format, for example "mobi" (required)'
+    )
     parser_send.add_argument("file", type=Path, help="file to send")
     parser_send.add_argument(
         "destination",
         type=str,
         nargs="+",
-        help='device ids to send the file to, or "all" to send to all devices',
+        help='device serial numbers to send the file to, or "all" to send to all devices',
     )
     parser_send.set_defaults(func=send)
 

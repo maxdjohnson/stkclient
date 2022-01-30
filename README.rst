@@ -65,7 +65,7 @@ You can install *Send To Kindle* via pip_ from PyPI_:
 Creating a Client
 -----------------
 
-Clients are created using the Authenticator class. Currently the only supported authentication mechanism is OAuth2:
+To create a client, you must authenticate the user. Currently the only supported authentication mechanism is OAuth2:
 
 .. code:: python
 
@@ -91,9 +91,9 @@ Once you have a Client object, you can list devices and send files to specified 
 
 .. code:: python
 
-   devices = client.get_list_of_owned_devices()
+   devices = client.get_owned_devices()
    destinations = [d.device_serial_number for d in devices.owned_devices]
-   client.send_to_kindle(filepath, destinations, author=author, title=title)
+   client.send_file(filepath, destinations, author=author, title=title)
 
 
 License

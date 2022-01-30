@@ -17,6 +17,7 @@ Changelog = "https://github.com/maxdjohnson/stkclient/releases"
 
 [tool.poetry.dependencies]
 python = "^3.8"
+isort = "^5.10.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
@@ -36,11 +37,11 @@ flake8-docstrings = "^1.6.0"
 flake8-rst-docstrings = "^0.2.3"
 pep8-naming = "^0.12.1"
 darglint = "^1.8.1"
-reorder-python-imports = "^2.6.0"
 pre-commit-hooks = "^4.0.1"
 Pygments = "^2.10.0"
 pyupgrade = "^2.29.1"
 furo = ">=2021.11.12"
+flake8-isort = "^4.1.1"
 
 [tool.poetry.scripts]
 stkclient = "stkclient.__main__:main"
