@@ -3,6 +3,9 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import List
+
+import stkclient
 
 
 def main() -> None:
@@ -53,7 +56,7 @@ def main() -> None:
     )
     parser_send.add_argument("file", type=Path, help="file to send")
     parser_send.add_argument(
-        "destination",
+        "target",
         type=str,
         nargs="+",
         help='device serial numbers to send the file to, or "all" to send to all devices',
@@ -77,6 +80,13 @@ def auth(args: argparse.Namespace) -> None:
         print(f"{outpath.parent} is not a directory", file=sys.stderr)
         exit(1)
     # TODO
+    auth = stkclient.OAuth2()
+    signin_url = auth.get_signin_url()
+    print(signin_url)
+    redirect_url = input("Enter redirect url: ")
+    client = auth.create_client(redirect_url)
+    with open(outpath, "w") as f:
+        client.dump(f)
 
 
 def devices(args: argparse.Namespace) -> None:
@@ -85,7 +95,11 @@ def devices(args: argparse.Namespace) -> None:
     if not clientpath.exists():
         print(f"{clientpath} does not exist", file=sys.stderr)
         exit(1)
-    # TODO
+    with open(clientpath) as f:
+        client = stkclient.Client.load(f)
+    devices = client.get_owned_devices()
+    for device in devices:
+        print(device)
 
 
 def send(args: argparse.Namespace) -> None:
@@ -94,7 +108,14 @@ def send(args: argparse.Namespace) -> None:
     if not clientpath.exists():
         print(f"{clientpath} does not exist", file=sys.stderr)
         exit(1)
-    # TODO
+    with open(clientpath) as f:
+        client = stkclient.Client.load(f)
+    target: List[str] = args.target
+    for dst in target:
+        if dst == "all":
+            target = [d.device_serial_number for d in client.get_owned_devices()]
+            break
+    client.send_file(args.file, target, author=args.author, title=args.title, format=args.format)
 
 
 def _default_client_path() -> Path:
