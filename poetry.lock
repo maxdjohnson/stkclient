@@ -392,7 +392,7 @@ python-versions = "*"
 name = "isort"
 version = "5.10.1"
 description = "A Python utility / library to sort Python imports."
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3.6.1,<4.0"
 
@@ -1028,7 +1028,7 @@ tests = ["codecov", "scikit-build", "cmake", "ninja", "pybind11", "pytest", "pyt
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "806f16719434a182303e388089c04c1353a86fae6689f392ae32c0507336a3c2"
+content-hash = "b794a24d9b902657961bc8dba338e994583cd9cd4cc3ae574d993ea8cefc1bd1"
 
 [metadata.files]
 alabaster = [
