@@ -1,0 +1,12 @@
+{
+  "_template": "gh:cjolowicz/cookiecutter-hypermodern-python",
+  "author": "Max Johnson",
+  "development_status": "Development Status :: 4 - Beta",
+  "email": "maxdjohnson@gmail.com",
+  "friendly_name": "Send To Kindle",
+  "github_user": "maxdjohnson",
+  "license": "MIT",
+  "package_name": "stkclient",
+  "project_name": "stkclient",
+  "version": "0.1.0"
+}
