@@ -17,7 +17,7 @@ Changelog = "https://github.com/maxdjohnson/stkclient/releases"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-lxml = "^4.7.1"
+defusedxml = "^0.7.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
@@ -43,7 +43,6 @@ pyupgrade = "^2.29.1"
 furo = ">=2021.11.12"
 flake8-isort = "^4.1.1"
 isort = "^5.10.1"
-lxml-stubs = "^0.3.1"
 
 [tool.poetry.scripts]
 stkclient = "stkclient.__main__:main"

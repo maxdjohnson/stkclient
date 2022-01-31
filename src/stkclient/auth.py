@@ -70,7 +70,7 @@ class OAuth2:
         with urllib.request.urlopen(req) as r:  # noqa S310
             if r.status != 200:
                 raise ValueError(r.read())
-            res = json.loads(r.read().decode("utf-8"))
+            res = json.load(r)
         try:
             return res["access_token"]
         except KeyError:
