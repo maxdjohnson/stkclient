@@ -2,11 +2,11 @@
 
 import base64
 import hashlib
-import json
 import os
 import urllib.parse
 import urllib.request
 
+from stkclient import api
 from stkclient.client import Client
 
 
@@ -43,39 +43,15 @@ class OAuth2:
 
     def create_client(self, redirect_url: str) -> Client:
         """Creates a client with the authorization code from the redirect url."""
-        u = urllib.parse.urlparse(redirect_url)
-        q = urllib.parse.parse_qs(u.query)
-        code = q["openid.oa2.authorization_code"][0]
-        body = {
-            "app_name": "Unknown",
-            "client_domain": "DeviceLegacy",
-            "client_id": "658490dfb190e494030082836775981fa23be0c2425441860352ba0f55915b43002d",
-            "code_algorithm": "SHA-256",
-            "code_verifier": self._verifier,
-            "requested_token_type": "access_token",
-            "source_token": code,
-            "source_token_type": "authorization_code",
-        }
-        req = urllib.request.Request(
-            url="https://api.amazon.com/auth/token",
-            data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Accept-Language": "en-US",
-                "x-amzn-identity-auth-domain": "api.amazon.com",
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req) as r:  # noqa S310
-            if r.status != 200:
-                raise ValueError(r.read().decode())
-            res = json.load(r)
-        try:
-            return res["access_token"]
-        except KeyError:
-            print(res)
-            raise
+        code = _parse_authorization_code(redirect_url)
+        access_token = api.token_exchange(code, self._verifier)
+        # TODO
+
+
+def _parse_authorization_code(redirect_url: str) -> str:
+    u = urllib.parse.urlparse(redirect_url)
+    q = urllib.parse.parse_qs(u.query)
+    return q["openid.oa2.authorization_code"][0]
 
 
 def _base64_url_encode(s: bytes) -> str:
