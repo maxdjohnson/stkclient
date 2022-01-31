@@ -4,8 +4,6 @@ import dataclasses
 from pathlib import Path
 from typing import IO, List, Mapping
 
-import lxml.etree  # noqa: S410
-
 
 @dataclasses.dataclass(frozen=True)
 class OwnedDevice:
@@ -52,24 +50,3 @@ class Client:
     ) -> None:
         """Sends a file to the specified kindle devices."""
         pass
-
-
-class Resolver(lxml.etree.Resolver):
-    """Resolving of SYSTEM entities is turned off as entities can cause reads of local files.
-
-    For example: <!DOCTYPE foo [ <!ENTITY passwd SYSTEM "file:///etc/passwd" >]>"""
-
-    def resolve(self, url: str, id: str, context: Any) -> Any:
-        return self.resolve_string("", context)
-
-
-def create_parser(recover: bool, encoding: Optional[str] = None) -> lxml.etree.XMLParser:
-    """Creates a parser with custom resolver."""
-    parser = lxml.etree.XMLParser(recover=recover, no_network=True, encoding=encoding)
-    parser.resolvers.add(Resolver())
-    return parser
-
-
-def safe_xml_fromstring(b: bytes, recover=True) -> lxml.etree.Element:
-    """Parses untrusted XML."""
-    return lxml.etree.fromstring(b, parser=create_parser(recover))
