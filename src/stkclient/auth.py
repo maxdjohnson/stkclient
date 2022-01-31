@@ -45,7 +45,7 @@ class OAuth2:
         """Creates a client with the authorization code from the redirect url."""
         code = _parse_authorization_code(redirect_url)
         access_token = api.token_exchange(code, self._verifier)
-        # TODO
+        return Client.from_access_token(access_token)
 
 
 def _parse_authorization_code(redirect_url: str) -> str:
