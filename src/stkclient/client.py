@@ -1,19 +1,11 @@
 """Send To Kindle Client."""
 
 import dataclasses
+import json
 from pathlib import Path
-from typing import IO, List, Mapping
+from typing import IO, Any, List, Mapping
 
 from stkclient import api, signer
-
-
-@dataclasses.dataclass(frozen=True)
-class OwnedDevice:
-    """Contains details about a kindle reader device owned by the end user."""
-
-    device_capabilities: Mapping[str, bool]
-    device_name: str
-    device_serial_number: str
 
 
 class Client:
@@ -29,31 +21,39 @@ class Client:
         self._signer = signer.Signer.from_device_info(device_info)
 
     @staticmethod
-    def load(f: IO) -> "Client":
+    def load(fp: IO) -> "Client":
         """Deserializes a client from a file-like object."""
-        pass
+        return Client._from_dict(json.load(fp))
 
     @staticmethod
     def loads(s: str) -> "Client":
         """Deserializes a client from a string."""
-        pass
+        return Client._from_dict(json.loads(s))
+
+    @staticmethod
+    def _from_dict(s: Mapping[str, Any]) -> "Client":
+        assert s.get("version") == 1
+        return Client(api.DeviceInfo.from_dict(s.get("device_info", {})))
 
     @staticmethod
     def from_access_token(access_token: str) -> "Client":
         device_info = api.register_device_with_token(access_token)
         return Client(device_info)
 
-    def dump(self, f: IO) -> None:
+    def dump(self, fp: IO) -> None:
         """Serializes the client into a file-like object."""
-        pass
+        return json.dump(self._to_dict(), fp)
 
     def dumps(self) -> str:
         """Serializes the client into a string."""
-        pass
+        return json.dumps(self._to_dict())
 
-    def get_owned_devices(self) -> List[OwnedDevice]:
+    def _to_dict(self) -> Mapping[str, Any]:
+        return {"version": 1, "device_info": dataclasses.asdict(self._device_info)}
+
+    def get_owned_devices(self) -> List[api.OwnedDevice]:
         """Returns a list of kindle devices owned by the end-user."""
-        api.get_owned_devices(self._signer, self._device_info.adp_token)
+        return api.get_owned_devices(self._signer).owned_devices
 
     def send_file(
         self,

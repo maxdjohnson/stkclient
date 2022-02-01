@@ -207,25 +207,28 @@ def upload_file(url: str, file_size: int, file_path: Path) -> None:
     u = urllib.parse.urlparse(url)
     if u.hostname is None:
         raise ValueError("Invalid URL")
-    getconn = http.client.HTTPSConnection(u.hostname)
-    headers = {
-        "Accept-Encoding": "gzip, deflate",
-        "Accept-Language": "en-US,*",
-        "Content-Length": str(file_size),
-        "User-Agent": "Mozilla/5.0",
-    }
-    with open(file_path, "r") as f:
-        getconn.request(
-            "POST",
-            url,
-            body=f,
-            headers=headers,
-        )
-    res = getconn.getresponse()
-    text = res.read()
-    if res.status != 200:
-        msg = f"HTTP Status Error {res.status} {res.reason}"
-        raise APIError(msg, text)
+    conn = http.client.HTTPSConnection(u.hostname)
+    try:
+        headers = {
+            "Accept-Encoding": "gzip, deflate",
+            "Accept-Language": "en-US,*",
+            "Content-Length": str(file_size),
+            "User-Agent": "Mozilla/5.0",
+        }
+        with open(file_path, "rb") as f:
+            conn.request(
+                "POST",
+                url,
+                body=f,
+                headers=headers,
+            )
+        res = conn.getresponse()
+        text = res.read()
+        if res.status != 200:
+            msg = f"HTTP Status Error {res.status} {res.reason}"
+            raise APIError(msg, text)
+    finally:
+        conn.close()
 
 
 def send_to_kindle(
