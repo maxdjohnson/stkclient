@@ -5,15 +5,15 @@ import json
 from pathlib import Path
 from typing import IO, Any, List, Mapping
 
-from stkclient import api, signer
+from stkclient import api, model, signer
 
 
 class Client:
     """Supports listing devices and sending files to specific devices."""
 
-    _device_info: api.DeviceInfo
+    _device_info: model.DeviceInfo
 
-    def __init__(self, device_info: api.DeviceInfo):
+    def __init__(self, device_info: model.DeviceInfo):
         """Constructs a client instance.
 
         Not meant to be called directly - use stkclient.OAuth2().create_client instead."""
@@ -33,7 +33,7 @@ class Client:
     @staticmethod
     def _from_dict(s: Mapping[str, Any]) -> "Client":
         assert s.get("version") == 1
-        return Client(api.DeviceInfo.from_dict(s.get("device_info", {})))
+        return Client(model.DeviceInfo.from_dict(s.get("device_info", {})))
 
     @staticmethod
     def from_access_token(access_token: str) -> "Client":
@@ -51,9 +51,9 @@ class Client:
     def _to_dict(self) -> Mapping[str, Any]:
         return {"version": 1, "device_info": dataclasses.asdict(self._device_info)}
 
-    def get_owned_devices(self) -> List[api.OwnedDevice]:
+    def get_owned_devices(self) -> List[model.OwnedDevice]:
         """Returns a list of kindle devices owned by the end-user."""
-        return api.get_owned_devices(self._signer).owned_devices
+        return api.get_list_of_owned_devices(self._signer).owned_devices
 
     def send_file(
         self,

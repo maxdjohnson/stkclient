@@ -1,10 +1,13 @@
 import json
+from pathlib import Path
 from typing import Any, Dict, Tuple
+from unittest.mock import Mock
 
 import httpretty
 import pytest
 
-from stkclient import api
+from stkclient import api, model
+from stkclient.signer import Signer
 
 
 @pytest.fixture()
@@ -109,3 +112,211 @@ def test_register_device_with_token_good(register_device_with_token):
 def test_register_device_with_token_bad(register_device_with_token):
     with pytest.raises(api.APIError):
         assert api.register_device_with_token("access_token_bad")
+
+
+@pytest.fixture()
+def signer() -> Signer:
+    m = Mock(spec=Signer)
+    m.adp_token = "test_adp_token"
+    m.digest_header_for_request.return_value = "test_signature"
+    return m
+
+
+def test_get_list_of_owned_devices_good(signer):
+    def request_callback(
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any], str]:
+        assert dict(request.headers) == {
+            "Host": "stkservice.amazon.com",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Adp-Request-Digest": "test_signature",
+            "X-Adp-Authentication-Token": "test_adp_token",
+            "Content-Length": request.headers.get("Content-Length"),
+            "Connection": "close",
+            "Accept-Encoding": "gzip, deflate",
+            "Accept-Language": "en-US,*",
+            "User-Agent": "Mozilla/5.0",
+        }
+        body = json.loads(request.body)
+        assert body == {"ClientInfo": api.DEFAULT_CLIENT_INFO}
+        res = {
+            "ownedDevices": [
+                {
+                    "deviceCapabilities": {
+                        "PDF_CONTENT_ENABLED": True,
+                        "WAN_ENABLED": False,
+                        "WIFI_CAPABLE": True,
+                    },
+                    "deviceName": "Max's 5th iPhone",
+                    "deviceSerialNumber": "35C6D8B149E345848BF462CC13824AA2",
+                },
+                {
+                    "deviceCapabilities": {
+                        "PDF_CONTENT_ENABLED": True,
+                        "WAN_ENABLED": False,
+                        "WIFI_CAPABLE": True,
+                    },
+                    "deviceName": "Max's Kindle",
+                    "deviceSerialNumber": "G000PP1311850V4X",
+                },
+            ],
+            "statusCode": 0,
+        }
+        return 200, response_headers, json.dumps(res)
+
+    httpretty.register_uri(
+        httpretty.POST, "https://stkservice.amazon.com/GetListOfOwnedDevices", body=request_callback
+    )
+    res = api.get_list_of_owned_devices(signer)
+    data = json.dumps({"ClientInfo": api.DEFAULT_CLIENT_INFO}, indent=4)
+    signer.digest_header_for_request.assert_called_with("POST", "/GetListOfOwnedDevices", data)
+    assert res == model.GetOwnedDevicesResponse(
+        owned_devices=[
+            model.OwnedDevice(
+                device_capabilities={
+                    "PDF_CONTENT_ENABLED": True,
+                    "WAN_ENABLED": False,
+                    "WIFI_CAPABLE": True,
+                },
+                device_name="Max's 5th iPhone",
+                device_serial_number="35C6D8B149E345848BF462CC13824AA2",
+            ),
+            model.OwnedDevice(
+                device_capabilities={
+                    "PDF_CONTENT_ENABLED": True,
+                    "WAN_ENABLED": False,
+                    "WIFI_CAPABLE": True,
+                },
+                device_name="Max's Kindle",
+                device_serial_number="G000PP1311850V4X",
+            ),
+        ],
+        status_code=0,
+    )
+
+
+def test_get_upload_url_good(signer):
+    def request_callback(
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any], str]:
+        assert dict(request.headers) == {
+            "Host": "stkservice.amazon.com",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Adp-Request-Digest": "test_signature",
+            "X-Adp-Authentication-Token": "test_adp_token",
+            "Content-Length": request.headers.get("Content-Length"),
+            "Connection": "close",
+            "Accept-Encoding": "gzip, deflate",
+            "Accept-Language": "en-US,*",
+            "User-Agent": "Mozilla/5.0",
+        }
+        body = json.loads(request.body)
+        assert body == {"ClientInfo": api.DEFAULT_CLIENT_INFO, "fileSize": 100}
+        res = {
+            "expiryTime": 3600000,
+            "statusCode": 0,
+            "stkToken": "9214b056b98b44238db291b3f2bb786c",
+            "uploadUrl": "https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D",
+        }
+        return 200, response_headers, json.dumps(res)
+
+    httpretty.register_uri(
+        httpretty.POST, "https://stkservice.amazon.com/GetUploadUrl", body=request_callback
+    )
+    res = api.get_upload_url(signer, 100)
+    data = json.dumps({"ClientInfo": api.DEFAULT_CLIENT_INFO, "fileSize": 100}, indent=4)
+    signer.digest_header_for_request.assert_called_with("POST", "/GetUploadUrl", data)
+    assert res == model.GetUploadUrlResponse(
+        expiry_time=3600000,
+        status_code=0,
+        stk_token="9214b056b98b44238db291b3f2bb786c",
+        upload_url="https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D",
+    )
+
+
+def test_upload_file_good(tmp_path: Path):
+    url = "https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D"
+    file_path = tmp_path / "test.txt"
+    with open(file_path, "w") as f:
+        f.write("test file contents\n")
+    file_size = file_path.stat().st_size
+
+    def request_callback(
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any], str]:
+        assert dict(request.headers) == {
+            "Accept-Encoding": "gzip, deflate",
+            "Accept-Language": "en-US,*",
+            "Content-Length": str(file_size),
+            "Host": "send-to-kindle-prod.s3.amazonaws.com",
+            "User-Agent": "Mozilla/5.0",
+        }
+        assert request.body == b"test file contents\n"
+        return 200, response_headers, ""
+
+    httpretty.register_uri(httpretty.POST, url, body=request_callback)
+    api.upload_file(url, file_size, file_path)
+    assert httpretty.last_request() is not None
+
+
+def test_send_to_kindle_good(signer):
+    stk_token = "test_stk_token"
+    targets = ["A", "B"]
+    author, title, format = "test_author", "test_title", "mobi"
+
+    def request_callback(
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any], str]:
+        assert dict(request.headers) == {
+            "Host": "stkservice.amazon.com",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Adp-Request-Digest": "test_signature",
+            "X-Adp-Authentication-Token": "test_adp_token",
+            "Content-Length": request.headers.get("Content-Length"),
+            "Connection": "close",
+            "Accept-Encoding": "gzip, deflate",
+            "Accept-Language": "en-US,*",
+            "User-Agent": "Mozilla/5.0",
+        }
+        body = json.loads(request.body)
+        assert body == {
+            "ClientInfo": api.DEFAULT_CLIENT_INFO,
+            "DocumentMetadata": {
+                "author": author,
+                "crc32": 0,
+                "inputFormat": format,
+                "title": title,
+            },
+            "archive": True,
+            "deliveryMechanism": "WIFI",
+            "outputFormat": "MOBI",
+            "stkToken": stk_token,
+            "targetDevices": targets,
+        }
+        res = {"sku": "7B672AF0FA604BECA8143275166EA316", "statusCode": 0}
+        return 200, response_headers, json.dumps(res)
+
+    httpretty.register_uri(
+        httpretty.POST, "https://stkservice.amazon.com/SendToKindle", body=request_callback
+    )
+    res = api.send_to_kindle(signer, stk_token, targets, author=author, title=title, format=format)
+    body = {
+        "ClientInfo": api.DEFAULT_CLIENT_INFO,
+        "DocumentMetadata": {
+            "author": author,
+            "crc32": 0,
+            "inputFormat": format,
+            "title": title,
+        },
+        "archive": True,
+        "deliveryMechanism": "WIFI",
+        "outputFormat": "MOBI",
+        "stkToken": stk_token,
+        "targetDevices": targets,
+    }
+    data = json.dumps(body, indent=4)
+    signer.digest_header_for_request.assert_called_with("POST", "/SendToKindle", data)
+    assert res == model.SendToKindleResponse(sku="7B672AF0FA604BECA8143275166EA316", status_code=0)

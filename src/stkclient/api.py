@@ -7,6 +7,14 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, List, Mapping, Optional, Protocol
 
+from stkclient.model import (
+    DeviceInfo,
+    GetOwnedDevicesResponse,
+    GetUploadUrlResponse,
+    SendToKindleResponse,
+)
+from stkclient.signer import Signer
+
 try:
     from defusedxml.ElementTree import fromstring as xml_parse
 except ImportError:
@@ -39,97 +47,6 @@ class APIError(ValueError):
         except AttributeError:
             text = None
         return APIError(msg, text)
-
-
-@dataclass(frozen=True)
-class DeviceInfo:
-    device_private_key: str
-    adp_token: str
-    device_type: str
-    given_name: str
-    name: str
-    account_pool: str
-    user_directed_id: str
-    user_device_name: str
-    home_region: Optional[str] = None
-
-    @staticmethod
-    def from_dict(d: Mapping[str, Any]) -> "DeviceInfo":
-        fieldnames = {f.name for f in fields(DeviceInfo)}
-        return DeviceInfo(**{k: v for k, v in d.items() if k in fieldnames})
-
-    @staticmethod
-    def from_xml(s: bytes) -> "DeviceInfo":
-        res = xml_parse(s)
-        info = {}
-        for el in res:
-            info[el.tag] = el.text
-        return DeviceInfo.from_dict(info)
-
-
-@dataclass(frozen=True)
-class OwnedDevice:
-    device_capabilities: Mapping[str, bool]
-    device_name: str
-    device_serial_number: str
-
-    @staticmethod
-    def from_dict(d: Mapping[str, Any]) -> "OwnedDevice":
-        return OwnedDevice(
-            device_capabilities=d["deviceCapabilities"],
-            device_name=d["deviceName"],
-            device_serial_number=d["deviceSerialNumber"],
-        )
-
-
-@dataclass(frozen=True)
-class GetOwnedDevicesResponse:
-    owned_devices: List[OwnedDevice]
-    status_code: int
-
-    @staticmethod
-    def from_dict(d: Mapping[str, Any]) -> "GetOwnedDevicesResponse":
-        return GetOwnedDevicesResponse(
-            owned_devices=[OwnedDevice.from_dict(v) for v in d["ownedDevices"]],
-            status_code=d["statusCode"],
-        )
-
-
-@dataclass(frozen=True)
-class GetUploadUrlResponse:
-    expiry_time: int
-    status_code: int
-    stk_token: str
-    upload_url: str
-
-    @staticmethod
-    def from_dict(d: Mapping[str, Any]) -> "GetUploadUrlResponse":
-        return GetUploadUrlResponse(
-            expiry_time=d["expiryTime"],
-            status_code=d["statusCode"],
-            stk_token=d["stkToken"],
-            upload_url=d["uploadUrl"],
-        )
-
-
-@dataclass(frozen=True)
-class SendToKindleResponse:
-    sku: str
-    status_code: int
-
-    @staticmethod
-    def from_dict(d: Mapping[str, Any]) -> "SendToKindleResponse":
-        return SendToKindleResponse(
-            sku=d["sku"],
-            status_code=d["statusCode"],
-        )
-
-
-class _Signer(Protocol):
-    adp_token: str
-
-    def digest_header_for_request(self, method: str, path: str, data: str) -> str:
-        ...
 
 
 def token_exchange(authorization_code: str, code_verifier: str) -> str:
@@ -193,12 +110,12 @@ def register_device_with_token(access_token: str) -> DeviceInfo:
         raise APIError.from_httperror(e)
 
 
-def get_owned_devices(signer: _Signer) -> GetOwnedDevicesResponse:
+def get_list_of_owned_devices(signer: Signer) -> GetOwnedDevicesResponse:
     res = _request("/GetListOfOwnedDevices", signer, {})
     return GetOwnedDevicesResponse.from_dict(res)
 
 
-def get_upload_url(signer: _Signer, file_size: int) -> GetUploadUrlResponse:
+def get_upload_url(signer: Signer, file_size: int) -> GetUploadUrlResponse:
     res = _request("/GetUploadUrl", signer, {"fileSize": file_size})
     return GetUploadUrlResponse.from_dict(res)
 
@@ -232,7 +149,7 @@ def upload_file(url: str, file_size: int, file_path: Path) -> None:
 
 
 def send_to_kindle(
-    signer: _Signer,
+    signer: Signer,
     stk_token: str,
     target_device_serial_numbers: List[str],
     *,
@@ -260,7 +177,7 @@ def send_to_kindle(
     return SendToKindleResponse.from_dict(res)
 
 
-def _request(path: str, signer: _Signer, body: Mapping[str, Any]) -> Mapping[str, Any]:
+def _request(path: str, signer: Signer, body: Mapping[str, Any]) -> Mapping[str, Any]:
     data = json.dumps(
         {
             "ClientInfo": DEFAULT_CLIENT_INFO,
@@ -273,6 +190,7 @@ def _request(path: str, signer: _Signer, body: Mapping[str, Any]) -> Mapping[str
         data=data.encode("utf-8"),
         headers={
             "Accept": "application/json",
+            "Accept-Encoding": "gzip, deflate",
             "Content-Type": "application/json",
             "X-ADP-Request-Digest": signer.digest_header_for_request("POST", path, data),
             "X-ADP-Authentication-Token": signer.adp_token,

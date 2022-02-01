@@ -7,7 +7,7 @@ from typing import Any, Mapping, Optional, cast
 import rsa
 from rsa import core, transform
 
-from .api import DeviceInfo
+from .model import DeviceInfo
 
 
 @dataclass(frozen=True)
