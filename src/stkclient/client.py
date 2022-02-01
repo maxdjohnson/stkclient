@@ -4,7 +4,7 @@ import dataclasses
 from pathlib import Path
 from typing import IO, List, Mapping
 
-from stkclient import api
+from stkclient import api, signer
 
 
 @dataclasses.dataclass(frozen=True)
@@ -26,6 +26,7 @@ class Client:
 
         Not meant to be called directly - use stkclient.OAuth2().create_client instead."""
         self._device_info = device_info
+        self._signer = signer.Signer.from_device_info(device_info)
 
     @staticmethod
     def load(f: IO) -> "Client":
@@ -52,11 +53,11 @@ class Client:
 
     def get_owned_devices(self) -> List[OwnedDevice]:
         """Returns a list of kindle devices owned by the end-user."""
-        pass
+        api.get_owned_devices(self._signer, self._device_info.adp_token)
 
     def send_file(
         self,
-        filepath: Path,
+        file_path: Path,
         target_device_serial_numbers: List[str],
         *,
         author: str,
@@ -64,4 +65,14 @@ class Client:
         format: str,
     ) -> None:
         """Sends a file to the specified kindle devices."""
-        pass
+        file_size = file_path.stat().st_size
+        upload = api.get_upload_url(self._signer, file_size)
+        api.upload_file(upload.upload_url, file_size, file_path)
+        api.send_to_kindle(
+            self._signer,
+            upload.stk_token,
+            target_device_serial_numbers,
+            author=author,
+            title=title,
+            format=format,
+        )

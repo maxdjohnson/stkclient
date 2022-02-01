@@ -18,6 +18,7 @@ Changelog = "https://github.com/maxdjohnson/stkclient/releases"
 [tool.poetry.dependencies]
 python = "^3.8"
 defusedxml = "^0.7.1"
+rsa = "^4.8"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
