@@ -2,7 +2,7 @@ import base64
 import datetime
 import hashlib
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional, cast
+from typing import Optional
 
 import rsa
 from rsa import core, transform
@@ -49,7 +49,7 @@ class Signer:
 
 
 # 2021-10-09T05:02:38Z
-def get_signing_date():
+def get_signing_date() -> str:
     return (
         datetime.datetime.utcnow()
         .replace(microsecond=0, tzinfo=datetime.timezone.utc)

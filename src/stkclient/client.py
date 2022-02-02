@@ -16,7 +16,8 @@ class Client:
     def __init__(self, device_info: model.DeviceInfo):
         """Constructs a client instance.
 
-        Not meant to be called directly - use stkclient.OAuth2().create_client instead."""
+        Not meant to be called directly - use stkclient.OAuth2().create_client instead.
+        """
         self._device_info = device_info
         self._signer = signer.Signer.from_device_info(device_info)
 
@@ -32,7 +33,8 @@ class Client:
 
     @staticmethod
     def _from_dict(s: Mapping[str, Any]) -> "Client":
-        assert s.get("version") == 1
+        if s.get("version") != 1:
+            raise ValueError("Invalid version")
         return Client(model.DeviceInfo.from_dict(s.get("device_info", {})))
 
     @staticmethod

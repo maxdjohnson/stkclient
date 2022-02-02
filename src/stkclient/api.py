@@ -3,9 +3,8 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Any, List, Mapping, Optional, Protocol
+from typing import Any, List, Mapping, Optional
 
 from stkclient.model import (
     DeviceInfo,
@@ -14,12 +13,6 @@ from stkclient.model import (
     SendToKindleResponse,
 )
 from stkclient.signer import Signer
-
-try:
-    from defusedxml.ElementTree import fromstring as xml_parse
-except ImportError:
-    from xml.etree.ElementTree import fromstring as xml_parse
-
 
 DEFAULT_CLIENT_INFO = {
     "appName": "ShellExtension",
@@ -76,7 +69,8 @@ def token_exchange(authorization_code: str, code_verifier: str) -> str:
             res = json.load(r)
     except urllib.error.HTTPError as e:
         raise APIError.from_httperror(e)
-    return res["access_token"]
+    access_token: str = res["access_token"]
+    return access_token
 
 
 def register_device_with_token(access_token: str) -> DeviceInfo:
