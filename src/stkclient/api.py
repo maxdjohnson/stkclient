@@ -1,10 +1,11 @@
+"""Typed wrapper functions for the amazon auth and stk APIs."""
+
 import http.client
 import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
-from typing import Any, List, Mapping, Optional
+from typing import Any, BinaryIO, List, Mapping, Optional
 
 from stkclient.model import (
     DeviceInfo,
@@ -23,26 +24,32 @@ DEFAULT_CLIENT_INFO = {
 
 
 class APIError(ValueError):
-    def __init__(self, msg: str, text: Optional[bytes]):
-        if text is not None:
+    """Represents errors returned in HTTP response of the API."""
+
+    def __init__(self, msg: str, body: Optional[bytes]):
+        """Construct an APIError with a given message and response body."""
+        if body is not None:
             try:
-                body = json.loads(text)
+                body = json.loads(body)
             except json.JSONDecodeError:
-                body = text
+                body = body
             msg += f" {json.dumps(body)}"
         super().__init__(msg)
 
-    @staticmethod
-    def from_httperror(e: urllib.error.HTTPError) -> "APIError":
-        msg = str(e)
-        try:
-            text = e.read()
-        except AttributeError:
-            text = None
-        return APIError(msg, text)
-
 
 def token_exchange(authorization_code: str, code_verifier: str) -> str:
+    """Exchange an authorization code obtained from the final oauth redirect for an access token.
+
+    Args:
+        authorization_code: The authorization code obtained from the final oauth redirect.
+        code_verifier: The code verifier that was originally generated before the auth request.
+
+    Returns:
+        The access token as a string.
+
+    Raises:
+        APIError: The HTTP request failed.
+    """
     body = {
         "app_name": "Unknown",
         "client_domain": "DeviceLegacy",
@@ -68,12 +75,23 @@ def token_exchange(authorization_code: str, code_verifier: str) -> str:
         with urllib.request.urlopen(req) as r:  # noqa S310
             res = json.load(r)
     except urllib.error.HTTPError as e:
-        raise APIError.from_httperror(e)
+        raise APIError(str(e), _text(e)) from e
     access_token: str = res["access_token"]
     return access_token
 
 
 def register_device_with_token(access_token: str) -> DeviceInfo:
+    """Creates a long-lived device capable of interacting with the STK API from an access_token.
+
+    Args:
+        access_token: The access token obtained from token exchange
+
+    Returns:
+        DeviceInfo instance with the newly created device.
+
+    Raises:
+        APIError: The HTTP request failed.
+    """
     q = {
         "device_type": "A1K6D1WRW0MALS",
         "device_serial_number": "ZYSQ37GQ5JQDAIKDZ3WYH6I74MJCVEGG",
@@ -101,24 +119,64 @@ def register_device_with_token(access_token: str) -> DeviceInfo:
         with urllib.request.urlopen(req) as r:  # noqa S310
             return DeviceInfo.from_xml(r.read())
     except urllib.error.HTTPError as e:
-        raise APIError.from_httperror(e)
+        raise APIError(str(e), _text(e)) from e
 
 
 def get_list_of_owned_devices(signer: Signer) -> GetOwnedDevicesResponse:
-    res = _request("/GetListOfOwnedDevices", signer, {})
-    return GetOwnedDevicesResponse.from_dict(res)
+    """Gets a list of send-to-kindle target devices.
+
+    Args:
+        signer: Signer instance to authenticate the client.
+
+    Returns:
+        GetOwnedDevicesResponse containing owned devices.
+
+    Raises:
+        APIError: The HTTP request failed.
+    """
+    try:
+        return GetOwnedDevicesResponse.from_dict(_request("/GetListOfOwnedDevices", signer, {}))
+    except urllib.error.HTTPError as e:
+        raise APIError(str(e), _text(e)) from e
 
 
 def get_upload_url(signer: Signer, file_size: int) -> GetUploadUrlResponse:
-    res = _request("/GetUploadUrl", signer, {"fileSize": file_size})
-    return GetUploadUrlResponse.from_dict(res)
+    """Gets a URL where the client can send the file contents via HTTP POST request.
+
+    Args:
+        signer: Signer instance to authenticate the client.
+        file_size: Size of the file to be uploaded.
+
+    Returns:
+        GetUploadUrlResponse containing the upload URL and token.
+
+    Raises:
+        APIError: The HTTP request failed.
+    """
+    try:
+        return GetUploadUrlResponse.from_dict(
+            _request("/GetUploadUrl", signer, {"fileSize": file_size})
+        )
+    except urllib.error.HTTPError as e:
+        raise APIError(str(e), _text(e)) from e
 
 
-def upload_file(url: str, file_size: int, file_path: Path) -> None:
+def upload_file(url: str, file_size: int, fp: BinaryIO) -> None:
+    """Perform a streaming upload of a file to the supplied URL via HTTP POST request.
+
+    Args:
+        url: Where to upload the file
+        file_size: Size of the file to be uploaded.
+        fp: Readable binary file-like object to upload.
+
+    Raises:
+        ValueError: The supplied URL is invalid.
+        APIError: The HTTP request failed.
+    """
     u = urllib.parse.urlparse(url)
     if u.hostname is None:
         raise ValueError("Invalid URL")
-    conn = http.client.HTTPSConnection(u.hostname)
+    conn = http.client.HTTPSConnection(u.hostname)  # noqa: S309
     try:
         headers = {
             "Accept-Encoding": "gzip, deflate",
@@ -126,13 +184,12 @@ def upload_file(url: str, file_size: int, file_path: Path) -> None:
             "Content-Length": str(file_size),
             "User-Agent": "Mozilla/5.0",
         }
-        with open(file_path, "rb") as f:
-            conn.request(
-                "POST",
-                url,
-                body=f,
-                headers=headers,
-            )
+        conn.request(
+            "POST",
+            url,
+            body=fp,
+            headers=headers,
+        )
         res = conn.getresponse()
         text = res.read()
         if res.status != 200:
@@ -150,25 +207,40 @@ def send_to_kindle(
     author: str,
     title: str,
     format: str,
-):
-    res = _request(
-        "/SendToKindle",
-        signer,
-        {
-            "DocumentMetadata": {
-                "author": author,
-                "crc32": 0,
-                "inputFormat": format,
-                "title": title,
-            },
-            "archive": True,
-            "deliveryMechanism": "WIFI",
-            "outputFormat": "MOBI",
-            "stkToken": stk_token,
-            "targetDevices": target_device_serial_numbers,
+) -> SendToKindleResponse:
+    """Send an uploaded file to the specified kindle devices.
+
+    Args:
+        signer: Signer instance to authenticate the client.
+        stk_token: The token associated with the upload url.
+        target_device_serial_numbers: The devices to receive the file.
+        author: The author of the document.
+        title: The title of the document.
+        format: The format of the document.
+
+    Returns:
+        SendToKindleResponse containing metadata about the sent file.
+
+    Raises:
+        APIError: The HTTP request failed.
+    """
+    body = {
+        "DocumentMetadata": {
+            "author": author,
+            "crc32": 0,
+            "inputFormat": format,
+            "title": title,
         },
-    )
-    return SendToKindleResponse.from_dict(res)
+        "archive": True,
+        "deliveryMechanism": "WIFI",
+        "outputFormat": "MOBI",
+        "stkToken": stk_token,
+        "targetDevices": target_device_serial_numbers,
+    }
+    try:
+        return SendToKindleResponse.from_dict(_request("/SendToKindle", signer, body))
+    except urllib.error.HTTPError as e:
+        raise APIError(str(e), _text(e)) from e
 
 
 def _request(path: str, signer: Signer, body: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -193,8 +265,13 @@ def _request(path: str, signer: Signer, body: Mapping[str, Any]) -> Mapping[str,
         },
         method="POST",
     )
+    with urllib.request.urlopen(req) as r:  # noqa S310
+        val: Mapping[str, Any] = json.load(r)
+        return val
+
+
+def _text(e: urllib.error.HTTPError) -> Optional[bytes]:
     try:
-        with urllib.request.urlopen(req) as r:  # noqa S310
-            return json.load(r)
-    except urllib.error.HTTPError as e:
-        raise APIError.from_httperror(e)
+        return e.read()
+    except AttributeError:
+        return None

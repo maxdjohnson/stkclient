@@ -3,7 +3,7 @@
 import dataclasses
 import json
 from pathlib import Path
-from typing import IO, Any, List, Mapping
+from typing import Any, BinaryIO, List, Mapping, TextIO, Union
 
 from stkclient import api, model, signer
 
@@ -22,7 +22,7 @@ class Client:
         self._signer = signer.Signer.from_device_info(device_info)
 
     @staticmethod
-    def load(fp: IO) -> "Client":
+    def load(fp: Union[TextIO, BinaryIO]) -> "Client":
         """Deserializes a client from a file-like object."""
         return Client._from_dict(json.load(fp))
 
@@ -39,10 +39,11 @@ class Client:
 
     @staticmethod
     def from_access_token(access_token: str) -> "Client":
+        """Construct a Client object from an access token."""
         device_info = api.register_device_with_token(access_token)
         return Client(device_info)
 
-    def dump(self, fp: IO) -> None:
+    def dump(self, fp: TextIO) -> None:
         """Serializes the client into a file-like object."""
         return json.dump(self._to_dict(), fp)
 

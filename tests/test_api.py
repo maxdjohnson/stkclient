@@ -1,3 +1,5 @@
+"""Unit tests of stkclient.api using httpretty-based mock."""
+
 import json
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -9,9 +11,14 @@ import pytest
 from stkclient import api, model
 from stkclient.signer import Signer
 
+ADP_TOKEN_GOOD = "adp_token_good"  # noqa S105
+STK_TOKEN_GOOD = "9214b056b98b44238db291b3f2bb786c"  # noqa S105
+
 
 @pytest.fixture()
 def token_exchange():
+    """Fixture providing a mock implementation of https://api.amazon.com/auth/token."""
+
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
     ) -> Tuple[int, Dict[str, Any], str]:
@@ -52,16 +59,20 @@ def token_exchange():
 
 
 def test_token_exchange_good(token_exchange):
+    """Check that token_exchange handles a successful request/response."""
     assert api.token_exchange("code_good", "verifier_good") == "access_token_good"
 
 
 def test_token_exchange_bad(token_exchange):
+    """Check that token_exchange handles an error response."""
     with pytest.raises(api.APIError):
         assert api.token_exchange("code_good", "verifier_bad")
 
 
 @pytest.fixture()
 def register_device_with_token():
+    """Fixture providing a mock implementation of /FirsProxy/registerDeviceWithToken."""
+
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
     ) -> Tuple[int, Dict[str, Any], str]:
@@ -85,7 +96,7 @@ def register_device_with_token():
         return (
             200,
             response_headers,
-            '<?xml version="1.0" encoding="UTF-8"?>\n<response><device_private_key>mock_key</device_private_key><adp_token>mock_token</adp_token><device_type>mock_device_type</device_type><given_name>Max</given_name><name>Max</name><account_pool>Amazon</account_pool><home_region>NA</home_region><user_directed_id>mock_user_id</user_directed_id><user_device_name>Max\'s 3rd Send to Kindle for Mac</user_device_name></response>',
+            f'<?xml version="1.0" encoding="UTF-8"?>\n<response><device_private_key>mock_key</device_private_key><adp_token>{ADP_TOKEN_GOOD}</adp_token><device_type>mock_device_type</device_type><given_name>Max</given_name><name>Max</name><account_pool>Amazon</account_pool><home_region>NA</home_region><user_directed_id>mock_user_id</user_directed_id><user_device_name>Max\'s 3rd Send to Kindle for Mac</user_device_name></response>',
         )
 
     httpretty.register_uri(
@@ -96,9 +107,10 @@ def register_device_with_token():
 
 
 def test_register_device_with_token_good(register_device_with_token):
-    assert api.register_device_with_token("access_token_good") == api.DeviceInfo(
+    """Check that register_device_with_token handles a successful request/response."""
+    assert api.register_device_with_token("access_token_good") == model.DeviceInfo(
         device_private_key="mock_key",
-        adp_token="mock_token",
+        adp_token=ADP_TOKEN_GOOD,
         device_type="mock_device_type",
         given_name="Max",
         name="Max",
@@ -110,12 +122,14 @@ def test_register_device_with_token_good(register_device_with_token):
 
 
 def test_register_device_with_token_bad(register_device_with_token):
+    """Check that register_device_with_token handles an API error."""
     with pytest.raises(api.APIError):
         assert api.register_device_with_token("access_token_bad")
 
 
 @pytest.fixture()
 def signer() -> Signer:
+    """Fixture provides a mock implementation of the Signer class."""
     m = Mock(spec=Signer)
     m.adp_token = "test_adp_token"
     m.digest_header_for_request.return_value = "test_signature"
@@ -123,6 +137,8 @@ def signer() -> Signer:
 
 
 def test_get_list_of_owned_devices_good(signer):
+    """Check that get_list_of_owned_devices returns the expected result."""
+
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
     ) -> Tuple[int, Dict[str, Any], str]:
@@ -197,6 +213,8 @@ def test_get_list_of_owned_devices_good(signer):
 
 
 def test_get_upload_url_good(signer):
+    """Check that get_upload_url returns the expected result."""
+
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
     ) -> Tuple[int, Dict[str, Any], str]:
@@ -217,7 +235,7 @@ def test_get_upload_url_good(signer):
         res = {
             "expiryTime": 3600000,
             "statusCode": 0,
-            "stkToken": "9214b056b98b44238db291b3f2bb786c",
+            "stkToken": STK_TOKEN_GOOD,
             "uploadUrl": "https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D",
         }
         return 200, response_headers, json.dumps(res)
@@ -231,12 +249,13 @@ def test_get_upload_url_good(signer):
     assert res == model.GetUploadUrlResponse(
         expiry_time=3600000,
         status_code=0,
-        stk_token="9214b056b98b44238db291b3f2bb786c",
+        stk_token=STK_TOKEN_GOOD,
         upload_url="https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D",
     )
 
 
 def test_upload_file_good(tmp_path: Path):
+    """Check that upload_file returns the expected result."""
     url = "https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D"
     file_path = tmp_path / "test.txt"
     with open(file_path, "w") as f:
@@ -257,12 +276,13 @@ def test_upload_file_good(tmp_path: Path):
         return 200, response_headers, ""
 
     httpretty.register_uri(httpretty.POST, url, body=request_callback)
-    api.upload_file(url, file_size, file_path)
+    with open(file_path, "rb") as f:
+        api.upload_file(url, file_size, f)
     assert httpretty.last_request() is not None
 
 
 def test_send_to_kindle_good(signer):
-    stk_token = "test_stk_token"
+    """Check that send_to_kindle returns the expected result."""
     targets = ["A", "B"]
     author, title, format = "test_author", "test_title", "mobi"
 
@@ -293,7 +313,7 @@ def test_send_to_kindle_good(signer):
             "archive": True,
             "deliveryMechanism": "WIFI",
             "outputFormat": "MOBI",
-            "stkToken": stk_token,
+            "stkToken": STK_TOKEN_GOOD,
             "targetDevices": targets,
         }
         res = {"sku": "7B672AF0FA604BECA8143275166EA316", "statusCode": 0}
@@ -302,7 +322,9 @@ def test_send_to_kindle_good(signer):
     httpretty.register_uri(
         httpretty.POST, "https://stkservice.amazon.com/SendToKindle", body=request_callback
     )
-    res = api.send_to_kindle(signer, stk_token, targets, author=author, title=title, format=format)
+    res = api.send_to_kindle(
+        signer, STK_TOKEN_GOOD, targets, author=author, title=title, format=format
+    )
     body = {
         "ClientInfo": api.DEFAULT_CLIENT_INFO,
         "DocumentMetadata": {
@@ -314,7 +336,7 @@ def test_send_to_kindle_good(signer):
         "archive": True,
         "deliveryMechanism": "WIFI",
         "outputFormat": "MOBI",
-        "stkToken": stk_token,
+        "stkToken": STK_TOKEN_GOOD,
         "targetDevices": targets,
     }
     data = json.dumps(body, indent=4)

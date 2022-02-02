@@ -1,14 +1,30 @@
+"""Send to Kindle API response and domain objects."""
+
 from dataclasses import dataclass, fields
 from typing import Any, List, Mapping, Optional
 
 try:
     from defusedxml.ElementTree import fromstring as xml_parse
 except ImportError:
-    from xml.etree.ElementTree import fromstring as xml_parse
+    from xml.etree.ElementTree import fromstring as xml_parse  # noqa: S405
 
 
 @dataclass(frozen=True)
 class DeviceInfo:
+    """Contains authentication information for the client as well as user metadata.
+
+    Attributes:
+        device_private_key: The private key used to generate the X-ADP-Request-Digest header.
+        adp_token: The value to be included in the X-ADP-Authentication-Token header.
+        device_type: An opaque identifier.
+        given_name: The end-user's given name.
+        name: The end-user's full name.
+        account_pool: "Amazon"
+        user_directed_id: An opaque identifier.
+        user_device_name: The end-user's name for their device.
+        home_region: "NA"
+    """
+
     device_private_key: str
     adp_token: str
     device_type: str
@@ -21,12 +37,14 @@ class DeviceInfo:
 
     @staticmethod
     def from_dict(d: Mapping[str, Any]) -> "DeviceInfo":
+        """Constructs a DeviceInfo from a dictionary of attributes, ignoring unknown fields."""
         fieldnames = {f.name for f in fields(DeviceInfo)}
         return DeviceInfo(**{k: v for k, v in d.items() if k in fieldnames})
 
     @staticmethod
-    def from_xml(s: bytes) -> "DeviceInfo":
-        res = xml_parse(s)
+    def from_xml(xml: bytes) -> "DeviceInfo":
+        """Constructs a DeviceInfo from an XML string."""
+        res = xml_parse(xml)  # noqa S314
         info = {}
         for el in res:
             info[el.tag] = el.text
@@ -35,12 +53,21 @@ class DeviceInfo:
 
 @dataclass(frozen=True)
 class OwnedDevice:
+    """Represents a user device supported by send-to-kindle.
+
+    Attributes:
+        device_capabilities: Mapping of capability name to boolean
+        device_name: Human readable device name specified by the end user.
+        device_serial_number: Unique ID of this device.
+    """
+
     device_capabilities: Mapping[str, bool]
     device_name: str
     device_serial_number: str
 
     @staticmethod
     def from_dict(d: Mapping[str, Any]) -> "OwnedDevice":
+        """Constructs an OwnedDevice from a dictionary of attributes, ignoring unknown fields."""
         return OwnedDevice(
             device_capabilities=d["deviceCapabilities"],
             device_name=d["deviceName"],
@@ -50,11 +77,19 @@ class OwnedDevice:
 
 @dataclass(frozen=True)
 class GetOwnedDevicesResponse:
+    """Response from get_list_of_owned_devices.
+
+    Attributes:
+        owned_devices: List of owned devices.
+        status_code: 0.
+    """
+
     owned_devices: List[OwnedDevice]
     status_code: int
 
     @staticmethod
     def from_dict(d: Mapping[str, Any]) -> "GetOwnedDevicesResponse":
+        """Constructs a GetOwnedDevicesResponse from a dictionary of attributes."""
         return GetOwnedDevicesResponse(
             owned_devices=[OwnedDevice.from_dict(v) for v in d["ownedDevices"]],
             status_code=d["statusCode"],
@@ -63,6 +98,15 @@ class GetOwnedDevicesResponse:
 
 @dataclass(frozen=True)
 class GetUploadUrlResponse:
+    """Response from get_upload_url.
+
+    Attributes:
+        expiry_time: When this URL expires.
+        status_code: 0
+        stk_token: Unique identifier for this url.
+        upload_url: The upload URL.
+    """
+
     expiry_time: int
     status_code: int
     stk_token: str
@@ -70,6 +114,7 @@ class GetUploadUrlResponse:
 
     @staticmethod
     def from_dict(d: Mapping[str, Any]) -> "GetUploadUrlResponse":
+        """Constructs a GetUploadUrlResponse from a dictionary of attributes."""
         return GetUploadUrlResponse(
             expiry_time=d["expiryTime"],
             status_code=d["statusCode"],
@@ -80,11 +125,19 @@ class GetUploadUrlResponse:
 
 @dataclass(frozen=True)
 class SendToKindleResponse:
+    """Response from send_to_kindle.
+
+    Attributes:
+        sku: Opaque ID
+        status_code: 0
+    """
+
     sku: str
     status_code: int
 
     @staticmethod
     def from_dict(d: Mapping[str, Any]) -> "SendToKindleResponse":
+        """Constructs a SendToKindleResponse from a dictionary of attributes."""
         return SendToKindleResponse(
             sku=d["sku"],
             status_code=d["statusCode"],
