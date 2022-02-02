@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Mapping, Tuple
 from unittest.mock import Mock
 
 import httpretty
@@ -16,12 +16,12 @@ STK_TOKEN_GOOD = "9214b056b98b44238db291b3f2bb786c"  # noqa S105
 
 
 @pytest.fixture()
-def token_exchange():
+def token_exchange() -> None:
     """Fixture providing a mock implementation of https://api.amazon.com/auth/token."""
 
     def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
-    ) -> Tuple[int, Dict[str, Any], str]:
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
+    ) -> Tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Accept-Encoding": "identity",
             "Content-Length": request.headers.get("Content-Length"),
@@ -58,24 +58,24 @@ def token_exchange():
     )
 
 
-def test_token_exchange_good(token_exchange):
+def test_token_exchange_good(token_exchange: None) -> None:
     """Check that token_exchange handles a successful request/response."""
     assert api.token_exchange("code_good", "verifier_good") == "access_token_good"
 
 
-def test_token_exchange_bad(token_exchange):
+def test_token_exchange_bad(token_exchange: None) -> None:
     """Check that token_exchange handles an error response."""
     with pytest.raises(api.APIError):
         assert api.token_exchange("code_good", "verifier_bad")
 
 
 @pytest.fixture()
-def register_device_with_token():
+def register_device_with_token() -> None:
     """Fixture providing a mock implementation of /FirsProxy/registerDeviceWithToken."""
 
     def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
-    ) -> Tuple[int, Dict[str, Any], str]:
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
+    ) -> Tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Accept-Encoding": "identity",
             "Accept-Language": "en-US,*",
@@ -106,7 +106,7 @@ def register_device_with_token():
     )
 
 
-def test_register_device_with_token_good(register_device_with_token):
+def test_register_device_with_token_good(register_device_with_token: None) -> None:
     """Check that register_device_with_token handles a successful request/response."""
     assert api.register_device_with_token("access_token_good") == model.DeviceInfo(
         device_private_key="mock_key",
@@ -121,7 +121,7 @@ def test_register_device_with_token_good(register_device_with_token):
     )
 
 
-def test_register_device_with_token_bad(register_device_with_token):
+def test_register_device_with_token_bad(register_device_with_token: None) -> None:
     """Check that register_device_with_token handles an API error."""
     with pytest.raises(api.APIError):
         assert api.register_device_with_token("access_token_bad")
@@ -136,12 +136,12 @@ def signer() -> Signer:
     return m
 
 
-def test_get_list_of_owned_devices_good(signer):
+def test_get_list_of_owned_devices_good(signer: Mock) -> None:
     """Check that get_list_of_owned_devices returns the expected result."""
 
     def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
-    ) -> Tuple[int, Dict[str, Any], str]:
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
+    ) -> Tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Host": "stkservice.amazon.com",
             "Accept": "application/json",
@@ -212,12 +212,12 @@ def test_get_list_of_owned_devices_good(signer):
     )
 
 
-def test_get_upload_url_good(signer):
+def test_get_upload_url_good(signer: Mock) -> None:
     """Check that get_upload_url returns the expected result."""
 
     def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
-    ) -> Tuple[int, Dict[str, Any], str]:
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
+    ) -> Tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Host": "stkservice.amazon.com",
             "Accept": "application/json",
@@ -254,17 +254,17 @@ def test_get_upload_url_good(signer):
     )
 
 
-def test_upload_file_good(tmp_path: Path):
+def test_upload_file_good(tmp_path: Path) -> None:
     """Check that upload_file returns the expected result."""
     url = "https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D"
     file_path = tmp_path / "test.txt"
-    with open(file_path, "w") as f:
-        f.write("test file contents\n")
+    with open(file_path, "w") as fw:
+        fw.write("test file contents\n")
     file_size = file_path.stat().st_size
 
     def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
-    ) -> Tuple[int, Dict[str, Any], str]:
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
+    ) -> Tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Accept-Encoding": "gzip, deflate",
             "Accept-Language": "en-US,*",
@@ -276,19 +276,19 @@ def test_upload_file_good(tmp_path: Path):
         return 200, response_headers, ""
 
     httpretty.register_uri(httpretty.POST, url, body=request_callback)
-    with open(file_path, "rb") as f:
-        api.upload_file(url, file_size, f)
+    with open(file_path, "rb") as fr:
+        api.upload_file(url, file_size, fr)
     assert httpretty.last_request() is not None
 
 
-def test_send_to_kindle_good(signer):
+def test_send_to_kindle_good(signer: Mock) -> None:
     """Check that send_to_kindle returns the expected result."""
     targets = ["A", "B"]
     author, title, format = "test_author", "test_title", "mobi"
 
     def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Dict[str, Any]
-    ) -> Tuple[int, Dict[str, Any], str]:
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
+    ) -> Tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Host": "stkservice.amazon.com",
             "Accept": "application/json",

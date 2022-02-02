@@ -4,7 +4,7 @@ import base64
 import datetime
 import hashlib
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, cast
 
 import rsa
 from rsa import core, transform
@@ -27,8 +27,9 @@ class Signer:
     @staticmethod
     def from_device_info(d: DeviceInfo) -> "Signer":
         """Constructs a Signer instance from a DeviceInfo object."""
+        k = rsa.PrivateKey.load_pkcs1(d.device_private_key.encode("utf-8"))
         return Signer(
-            device_private_key=rsa.PrivateKey.load_pkcs1(d.device_private_key.encode("utf-8")),
+            device_private_key=cast(rsa.PrivateKey, k),
             adp_token=d.adp_token,
         )
 

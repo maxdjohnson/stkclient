@@ -1,6 +1,6 @@
 """Unit tests of stkclient.signer."""
 
-from stkclient.api import DeviceInfo
+from stkclient.model import DeviceInfo
 from stkclient.signer import Signer
 
 DEVICE_INFO_XML = """
@@ -37,7 +37,7 @@ Tc4WRiekzEvca7vfHZhyV9M862YPUHnRGD5cUm74BkJs6fe+0Kg1og==
 EXPECTED_SIG = "czUzgbTkzXs2/esqFMcbGuIAdVkRPBzYJFsOnHNep0sW/xyW5hCtOgphRAqZGnUP4jXVvHTf+dRsRg5wdSzcp8CG5POxXZ6Qi+0KeKWiraMNmdRP7+L1RLXJ5cgd/HLbrBqGYAK5+VEpNDRitNXBm4KJOysPWyvf5mU6tu0KoHCfEm0biNNjTEn54J+FaQlB0xYIb8WHct/vqTQGmKoKhZGsPe1L5HwzTZfg5Wdld9SjujgaW8uQmWJ7QpDJ0dw5Fv1W0x6fK+pM/rM/rPQ5XrbPYIeXSSPL6KKoqeIPpbwNrVHdgpeZAU/1BMIF7+zXQKv4L8IjFizgf+L2tqa6Yg==:2020-04-10T14:21:40Z"
 
 
-def test_signer():
+def test_signer() -> None:
     """Check that signer returns the expected digest value with a known key."""
     date = "2020-04-10T14:21:40Z"
     request_path = "/FirsProxy/getStoreCredentials"

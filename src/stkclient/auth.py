@@ -13,7 +13,7 @@ from stkclient.client import Client
 class OAuth2:
     """Authenticates an end-user using amazon's OAuth2."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Constructs an OAuth2."""
         self._verifier = _base64_url_encode(os.urandom(32))
 
@@ -42,7 +42,14 @@ class OAuth2:
         return "https://www.amazon.com/ap/signin?" + urllib.parse.urlencode(q)
 
     def create_client(self, redirect_url: str) -> Client:
-        """Creates a client with the authorization code from the redirect url."""
+        """Creates a client with the authorization code from the redirect URL.
+
+        Args:
+            redirect_url: The final oauth redirect URL.
+
+        Returns:
+            Client instance.
+        """
         code = _parse_authorization_code(redirect_url)
         access_token = api.token_exchange(code, self._verifier)
         return Client.from_access_token(access_token)

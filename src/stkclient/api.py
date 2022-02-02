@@ -5,7 +5,7 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, BinaryIO, List, Mapping, Optional
+from typing import IO, Any, List, Mapping, Optional
 
 from stkclient.model import (
     DeviceInfo,
@@ -161,7 +161,7 @@ def get_upload_url(signer: Signer, file_size: int) -> GetUploadUrlResponse:
         raise APIError(str(e), _text(e)) from e
 
 
-def upload_file(url: str, file_size: int, fp: BinaryIO) -> None:
+def upload_file(url: str, file_size: int, fp: IO[Any]) -> None:
     """Perform a streaming upload of a file to the supplied URL via HTTP POST request.
 
     Args:

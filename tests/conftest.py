@@ -1,11 +1,13 @@
 """Shared fixtures."""
 
+from typing import Generator
+
 import httpretty
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def disable_network_calls():
+def disable_network_calls() -> Generator[None, None, None]:
     """Mocks network using httpretty."""
     httpretty.enable(verbose=True, allow_net_connect=False)
     yield
