@@ -12,7 +12,7 @@ from rsa import core, transform
 from .model import DeviceInfo
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Signer:
     """Implements RSA request signing for amazon APIs.
 

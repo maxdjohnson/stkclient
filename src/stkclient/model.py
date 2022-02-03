@@ -1,6 +1,6 @@
 """Send to Kindle API response and domain objects."""
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from typing import Any, List, Mapping, Optional
 
 try:
@@ -25,8 +25,8 @@ class DeviceInfo:
         home_region: "NA"
     """
 
-    device_private_key: str
-    adp_token: str
+    device_private_key: str = field(repr=False)
+    adp_token: str = field(repr=False)
     device_type: str
     given_name: str
     name: str
