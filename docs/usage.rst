@@ -1,6 +1,7 @@
 Usage
 =====
 
-.. click:: stkclient.__main__:main
+.. argparse::
+   :module: stkclient.__main__
+   :func: arg_parser
    :prog: stkclient
-   :nested: full

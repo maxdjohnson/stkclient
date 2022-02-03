@@ -7,6 +7,7 @@ copyright = f"{datetime.now().year}, {author}"
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
+    "sphinxarg.ext",
 ]
 autodoc_typehints = "description"
 html_theme = "furo"

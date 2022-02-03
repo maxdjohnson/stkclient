@@ -7,33 +7,37 @@ from typing import List
 
 import stkclient
 
+DEFAULT_CLIENT_PATH = os.path.join("$XDG_DATA_HOME", "pystkclient", "client.json")
 
-def main() -> None:
-    """Send To Kindle."""
+
+def arg_parser() -> argparse.ArgumentParser:
+    """Constructs an ArgumentParser for the stkclient script."""
     # create the top-level parser
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        prog="stkclient", description="Command-line interface for Amazon's Send-to-Kindle service"
+    )
     subparsers = parser.add_subparsers()
 
-    # create the parser for the "auth" command
-    parser_auth = subparsers.add_parser("auth", help=auth.__doc__)
-    parser_auth.add_argument(
+    # create the parser for the "login" command
+    parser_login = subparsers.add_parser("login", help=login.__doc__)
+    parser_login.add_argument(
         "--client",
-        type=Path,
-        default=_default_client_path(),
+        type=str,
+        default=DEFAULT_CLIENT_PATH,
         help="path to write the client details",
     )
-    parser_auth.add_argument(
+    parser_login.add_argument(
         "-f", "--force", action="store_true", help="overwrite the existing client, if there is one"
     )
-    parser_auth.set_defaults(func=auth)
+    parser_login.set_defaults(func=login)
 
     # create the parser for the "devices" command
     parser_devices = subparsers.add_parser("devices", help=devices.__doc__)
     parser_devices.add_argument(
         "--client",
-        type=Path,
-        default=_default_client_path(),
-        help="path to load the client details (defaults to $XDG_DATA_HOME/pystkclient/client.json)",
+        type=str,
+        default=DEFAULT_CLIENT_PATH,
+        help="path to load the client details",
     )
     parser_devices.set_defaults(func=devices)
 
@@ -41,9 +45,9 @@ def main() -> None:
     parser_send = subparsers.add_parser("send", help=send.__doc__)
     parser_send.add_argument(
         "--client",
-        type=Path,
-        default=_default_client_path(),
-        help="path to load the client details (defaults to $XDG_DATA_HOME/pystkclient/client.json)",
+        type=str,
+        default=DEFAULT_CLIENT_PATH,
+        help="path to load the client details",
     )
     parser_send.add_argument(
         "--title", type=str, required=True, help="title of the work (required)"
@@ -62,40 +66,53 @@ def main() -> None:
         help='device serial numbers to send the file to, or "all" to send to all devices',
     )
     parser_send.set_defaults(func=send)
+    # create the parser for the "logout" command
+    parser_logout = subparsers.add_parser("logout", help=logout.__doc__)
+    parser_logout.add_argument(
+        "--client",
+        type=str,
+        default=DEFAULT_CLIENT_PATH,
+        help="path to write the client details",
+    )
+    parser_logout.set_defaults(func=logout)
+    # TODO verbosity
+    return parser
 
-    # parse the args and call whatever function was selected
+
+def main() -> None:
+    """Send To Kindle."""
+    parser = arg_parser()
     args = parser.parse_args()
     args.func(args)
 
 
-def auth(args: argparse.Namespace) -> None:
+def login(args: argparse.Namespace) -> None:
     """Create a client by authenticating with OAuth2."""
-    outpath: Path = args.client
-    if outpath.exists() and not args.force:
-        print(f"{outpath} already exists", file=sys.stderr)
+    client_path = _get_client_path(args)
+    if client_path.exists() and not args.force:
+        print(f"{client_path} already exists", file=sys.stderr)
         exit(1)
-    if outpath == _default_client_path():
-        outpath.parent.mkdir(parents=True, exist_ok=True)
-    elif not outpath.parent.is_dir():
-        print(f"{outpath.parent} is not a directory", file=sys.stderr)
+    if args.client == DEFAULT_CLIENT_PATH:
+        client_path.parent.mkdir(parents=True, exist_ok=True)
+    elif not client_path.parent.is_dir():
+        print(f"{client_path.parent} is not a directory", file=sys.stderr)
         exit(1)
-    # TODO
     auth = stkclient.OAuth2()
     signin_url = auth.get_signin_url()
     print(signin_url)
     redirect_url = input("Enter redirect url: ")
     client = auth.create_client(redirect_url)
-    with open(outpath, "w") as f:
+    with open(client_path, "w") as f:
         client.dump(f)
 
 
 def devices(args: argparse.Namespace) -> None:
     """List available kindle reader devices."""
-    clientpath: Path = args.client
-    if not clientpath.exists():
-        print(f"{clientpath} does not exist", file=sys.stderr)
+    client_path = _get_client_path(args)
+    if not client_path.exists():
+        print(f"{client_path} does not exist", file=sys.stderr)
         exit(1)
-    with open(clientpath) as f:
+    with open(client_path) as f:
         client = stkclient.Client.load(f)
     devices = client.get_owned_devices()
     for device in devices:
@@ -104,29 +121,33 @@ def devices(args: argparse.Namespace) -> None:
 
 def send(args: argparse.Namespace) -> None:
     """Send a file to one or more devices."""
-    clientpath: Path = args.client
-    if not clientpath.exists():
-        print(f"{clientpath} does not exist", file=sys.stderr)
+    client_path = _get_client_path(args)
+    if not client_path.exists():
+        print(f"{client_path} does not exist", file=sys.stderr)
         exit(1)
-    with open(clientpath) as f:
+    with open(client_path) as f:
         client = stkclient.Client.load(f)
     target: List[str] = args.target
-    for dst in target:
-        if dst == "all":
-            target = [d.device_serial_number for d in client.get_owned_devices()]
-            break
+    if any(t == "all" for t in args.target):
+        target = [d.device_serial_number for d in client.get_owned_devices()]
     client.send_file(args.file, target, author=args.author, title=args.title, format=args.format)
 
 
-def _default_client_path() -> Path:
-    return _data_home() / "pystkclient" / "client.json"
+def logout(args: argparse.Namespace) -> None:
+    """Deauthorize and delete a client."""
+    client_path = _get_client_path(args)
+    if not client_path.exists():
+        print(f"{client_path} does not exist", file=sys.stderr)
+        exit(1)
+    with open(client_path) as f:
+        _ = stkclient.Client.load(f)
+    raise NotImplementedError()
 
 
-def _data_home() -> Path:
-    value = os.environ.get("XDG_DATA_HOME")
-    if value and os.path.isabs(value):
-        return Path(value)
-    return Path.home() / ".local" / "share"
+def _get_client_path(args: argparse.Namespace) -> Path:
+    client_path: str = args.client
+    data_home = os.environ.get("XDG_DATA_HOME", os.path.join("~", ".local", "share"))
+    return Path(client_path.replace("$XDG_DATA_HOME", data_home)).expanduser()
 
 
 if __name__ == "__main__":
