@@ -66,6 +66,7 @@ def arg_parser() -> argparse.ArgumentParser:
         help='device serial numbers to send the file to, or "all" to send to all devices',
     )
     parser_send.set_defaults(func=send)
+
     # create the parser for the "logout" command
     parser_logout = subparsers.add_parser("logout", help=logout.__doc__)
     parser_logout.add_argument(
@@ -75,15 +76,16 @@ def arg_parser() -> argparse.ArgumentParser:
         help="path to the client details - will be deleted",
     )
     parser_logout.set_defaults(func=logout)
+
     # TODO verbosity
     return parser
 
 
-def main() -> None:
+def main(args: List[str]) -> None:
     """Send To Kindle."""
     parser = arg_parser()
-    args = parser.parse_args()
-    args.func(args)
+    parsed = parser.parse_args(args)
+    parsed.func(parsed)
 
 
 def login(args: argparse.Namespace) -> None:
@@ -152,4 +154,4 @@ def _get_client_path(args: argparse.Namespace) -> Path:
 
 
 if __name__ == "__main__":
-    main()  # pragma: no cover
+    main(sys.argv[1:])  # pragma: no cover
