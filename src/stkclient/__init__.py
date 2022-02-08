@@ -69,6 +69,10 @@ class Client:
         )
         return ret.sku
 
+    def logout(self) -> None:
+        """Logs out the client."""
+        api.logout(self._signer)
+
     @staticmethod
     def from_access_token(access_token: str) -> "Client":
         """Construct a Client object from an access token.

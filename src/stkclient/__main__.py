@@ -140,8 +140,9 @@ def logout(args: argparse.Namespace) -> None:
         print(f"{client_path} does not exist", file=sys.stderr)
         exit(1)
     with open(client_path) as f:
-        _ = stkclient.Client.load(f)
-    raise NotImplementedError()
+        c = stkclient.Client.load(f)
+    c.logout()
+    client_path.unlink()
 
 
 def _get_client_path(args: argparse.Namespace) -> Path:

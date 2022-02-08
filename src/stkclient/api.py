@@ -243,6 +243,34 @@ def send_to_kindle(
         raise APIError(str(e), _text(e)) from e
 
 
+def logout(signer: Signer) -> None:
+    """Logs out a send-to-kindle client.
+
+    Args:
+        signer: Signer instance to authenticate the client.
+
+    Raises:
+        APIError: The HTTP request failed.
+    """
+    path = "/FirsProxy/disownFiona?contentDeleted=false"
+    req = urllib.request.Request(
+        url="https://firs-ta-g7g.amazon.com" + path,
+        headers={
+            "Content-Type": "text/xml",
+            "X-ADP-Request-Digest": signer.digest_header_for_request("GET", path, ""),
+            "X-ADP-Authentication-Token": signer.adp_token,
+            "Accept-Language": "en-US,*",
+            "User-Agent": "Mozilla/5.0",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req) as r:  # noqa S310
+            r.read()  # Read and discard
+    except urllib.error.HTTPError as e:
+        raise APIError(str(e), _text(e)) from e
+
+
 def _request(path: str, signer: Signer, body: Mapping[str, Any]) -> Mapping[str, Any]:
     data = json.dumps(
         {

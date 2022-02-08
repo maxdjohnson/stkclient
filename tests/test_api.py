@@ -342,3 +342,24 @@ def test_send_to_kindle_good(signer: Mock) -> None:
     data = json.dumps(body, indent=4)
     signer.digest_header_for_request.assert_called_with("POST", "/SendToKindle", data)
     assert res == model.SendToKindleResponse(sku="7B672AF0FA604BECA8143275166EA316", status_code=0)
+
+
+def test_logout_good(signer: Mock) -> None:
+    """Check that logout makes the expected call."""
+    httpretty.register_uri(
+        httpretty.GET,
+        "https://firs-ta-g7g.amazon.com/FirsProxy/disownFiona?contentDeleted=false",
+        body='<?xml version="1.0" encoding="UTF-8"?>\n<response><status>SUCCESS</status></response>',
+    )
+    api.logout(signer)
+    r = httpretty.last_request()
+    assert dict(r.headers) == {
+        "Accept-Encoding": "identity",
+        "Accept-Language": "en-US,*",
+        "Connection": "close",
+        "Content-Type": "text/xml",
+        "Host": "firs-ta-g7g.amazon.com",
+        "User-Agent": "Mozilla/5.0",
+        "X-Adp-Request-Digest": "test_signature",
+        "X-Adp-Authentication-Token": "test_adp_token",
+    }
