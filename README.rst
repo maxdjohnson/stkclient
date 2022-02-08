@@ -69,9 +69,12 @@ To create a client, you must authenticate the user. Currently the only supported
 
 .. code:: python
 
+   import stkclient
+
    a = stkclient.OAuth2()
    signin_url = a.get_signin_url()
-   # Open `signin_url` in a browser, sign in and authorize the application, pass the final redirect_url below
+   # Open `signin_url` in a browser, sign in and authorize the application, pass
+   # the final redirect_url below
    client = a.create_client(redirect_url)
 
 Once a client is created, it can be serialized and deserialized using ``Client.load`` / ``Client.loads`` and ``client.dump`` / ``client.dumps``

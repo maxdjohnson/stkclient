@@ -37,7 +37,7 @@ def arg_parser() -> argparse.ArgumentParser:
         "--client",
         type=str,
         default=DEFAULT_CLIENT_PATH,
-        help="path to load the client details",
+        help="path to the client details",
     )
     parser_devices.set_defaults(func=devices)
 
@@ -47,7 +47,7 @@ def arg_parser() -> argparse.ArgumentParser:
         "--client",
         type=str,
         default=DEFAULT_CLIENT_PATH,
-        help="path to load the client details",
+        help="path to the client details",
     )
     parser_send.add_argument(
         "--title", type=str, required=True, help="title of the work (required)"
@@ -72,7 +72,7 @@ def arg_parser() -> argparse.ArgumentParser:
         "--client",
         type=str,
         default=DEFAULT_CLIENT_PATH,
-        help="path to write the client details",
+        help="path to the client details - will be deleted",
     )
     parser_logout.set_defaults(func=logout)
     # TODO verbosity

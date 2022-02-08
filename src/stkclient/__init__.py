@@ -74,19 +74,6 @@ class Client:
         api.logout(self._signer)
 
     @staticmethod
-    def from_access_token(access_token: str) -> "Client":
-        """Construct a Client object from an access token.
-
-        Args:
-            access_token: The access token obtained from token exchange
-
-        Returns:
-            Client instance.
-        """
-        device_info = api.register_device_with_token(access_token)
-        return Client(device_info)
-
-    @staticmethod
     def load(fp: Union[TextIO, BinaryIO]) -> "Client":
         """Deserializes a client from a file-like object."""
         return Client._from_dict(json.load(fp))
@@ -122,7 +109,7 @@ class OAuth2:
         self._verifier = _base64_url_encode(os.urandom(32))
 
     def get_signin_url(self) -> str:
-        """Gets the signin URL."""
+        """Gets the signin URL. Open in a web browser to start authentication."""
         challenge = _base64_url_encode(_sha256(self._verifier.encode("utf-8")))
         q = {
             "openid.claimed_id": "http://specs.openid.net/auth/2.0/identifier_select",
@@ -156,7 +143,8 @@ class OAuth2:
         """
         code = _parse_authorization_code(redirect_url)
         access_token = api.token_exchange(code, self._verifier)
-        return Client.from_access_token(access_token)
+        device_info = api.register_device_with_token(access_token)
+        return Client(device_info)
 
 
 def _parse_authorization_code(redirect_url: str) -> str:
