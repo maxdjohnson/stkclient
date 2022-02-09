@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "stkclient"
-version = "0.1.0"
+version = "0.1.1"
 description = "Send To Kindle"
 authors = ["Max Johnson <maxdjohnson@gmail.com>"]
 license = "MIT"
