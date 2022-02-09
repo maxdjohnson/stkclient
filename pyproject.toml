@@ -1,20 +1,80 @@
 [tool.poetry]
-name = "sendtokindle"
+name = "stkclient"
 version = "0.1.0"
-description = "Python library for sending books to kindle over http"
-authors = ["Max Johnson <mjohnson@plaid.com>"]
+description = "Send To Kindle"
+authors = ["Max Johnson <maxdjohnson@gmail.com>"]
+license = "MIT"
+readme = "README.rst"
+homepage = "https://github.com/maxdjohnson/stkclient"
+repository = "https://github.com/maxdjohnson/stkclient"
+documentation = "https://stkclient.readthedocs.io"
+classifiers = [
+    "Development Status :: 4 - Beta",
+]
+
+[tool.poetry.urls]
+Changelog = "https://github.com/maxdjohnson/stkclient/releases"
 
 [tool.poetry.dependencies]
 python = "^3.7"
-requests = "^2.26.0"
-lxml = "^4.6.3"
-rsa = "^4.7.2"
+defusedxml = "^0.7.1"
+rsa = "^4.8"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
-types-requests = "^2.25.11"
-lxml-stubs = "^0.3.0"
+coverage = {extras = ["toml"], version = "^6.1"}
+safety = "^1.10.3"
+mypy = "^0.910"
+typeguard = "^2.13.2"
+xdoctest = {extras = ["colors"], version = "^0.15.10"}
+sphinx = "^4.3.0"
+sphinx-autobuild = ">=2021.3.14"
+pre-commit = "^2.15.0"
+flake8 = "^4.0.1"
+black = ">=21.10b0"
+flake8-bandit = "^2.1.2"
+flake8-bugbear = "^21.9.2"
+flake8-docstrings = "^1.6.0"
+flake8-rst-docstrings = "^0.2.3"
+pep8-naming = "^0.12.1"
+darglint = "^1.8.1"
+pre-commit-hooks = "^4.0.1"
+Pygments = "^2.10.0"
+pyupgrade = "^2.29.1"
+furo = ">=2021.11.12"
+flake8-isort = "^4.1.1"
+isort = "^5.10.1"
+httpretty = "^1.1.4"
+pytest-mock = "^3.7.0"
+sphinx-argparse = "^0.3.1"
+
+[tool.poetry.scripts]
+stkclient = "stkclient.__main__:main"
+
+[tool.coverage.paths]
+source = ["src", "*/site-packages"]
+tests = ["tests", "*/tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["stkclient", "tests"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
+
+[tool.mypy]
+strict = true
+warn_unreachable = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR/stubs"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+
+[tool.isort]
+profile = "black"
