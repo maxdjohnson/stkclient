@@ -1,12 +1,18 @@
 """Command-line interface."""
 import argparse
 import os
-import readline  # noqa
 import sys
 from pathlib import Path
 from typing import List, Optional
 
 import stkclient
+
+# Try to import the readline module for improved input() behavior. Without this, pasting a line
+# longer than 1024 chars causes the process to hang on my machine.
+try:
+    import readline  # noqa
+except ModuleNotFoundError:
+    pass  # not available on windows
 
 DEFAULT_CLIENT_PATH = os.path.join("$XDG_DATA_HOME", "pystkclient", "client.json")
 
