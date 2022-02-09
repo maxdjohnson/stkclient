@@ -259,7 +259,7 @@ def test_upload_file_good(tmp_path: Path) -> None:
     url = "https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D"
     file_path = tmp_path / "test.txt"
     with open(file_path, "w") as fw:
-        fw.write("test file contents\n")
+        fw.write("test file contents")
     file_size = file_path.stat().st_size
 
     def request_callback(
@@ -272,7 +272,7 @@ def test_upload_file_good(tmp_path: Path) -> None:
             "Host": "send-to-kindle-prod.s3.amazonaws.com",
             "User-Agent": "Mozilla/5.0",
         }
-        assert request.body == b"test file contents\n"
+        assert request.body == b"test file contents"
         return 200, response_headers, ""
 
     httpretty.register_uri(httpretty.POST, url, body=request_callback)
