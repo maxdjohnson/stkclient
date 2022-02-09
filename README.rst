@@ -5,8 +5,6 @@ Send To Kindle
 
 |Read the Docs| |Tests| |Codecov|
 
-|pre-commit| |Black|
-
 .. |PyPI| image:: https://img.shields.io/pypi/v/stkclient.svg
    :target: https://pypi.org/project/stkclient/
    :alt: PyPI
@@ -28,12 +26,6 @@ Send To Kindle
 .. |Codecov| image:: https://codecov.io/gh/maxdjohnson/stkclient/branch/main/graph/badge.svg
    :target: https://codecov.io/gh/maxdjohnson/stkclient
    :alt: Codecov
-.. |pre-commit| image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
-   :target: https://github.com/pre-commit/pre-commit
-   :alt: pre-commit
-.. |Black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
-   :target: https://github.com/psf/black
-   :alt: Black
 
 
 ``stkclient`` implements a client for amazon's "Send to Kindle" service. It allows python programs to
@@ -44,12 +36,6 @@ Features
 
 * OAuth-based authorization
 * Send large (>10MB) files to Kindle devices
-
-
-Requirements
-------------
-
-* TODO
 
 
 Installation
