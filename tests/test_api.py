@@ -275,7 +275,7 @@ def test_upload_file_good(tmp_path: Path) -> None:
         assert request.body == b"test file contents"
         return 200, response_headers, ""
 
-    httpretty.register_uri(httpretty.POST, url, body=request_callback)
+    httpretty.register_uri(httpretty.PUT, url, body=request_callback)
     with open(file_path, "rb") as fr:
         api.upload_file(url, file_size, fr)
     assert httpretty.last_request() is not None

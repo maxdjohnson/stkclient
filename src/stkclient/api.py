@@ -162,7 +162,7 @@ def get_upload_url(signer: Signer, file_size: int) -> GetUploadUrlResponse:
 
 
 def upload_file(url: str, file_size: int, fp: IO[Any]) -> None:
-    """Perform a streaming upload of a file to the supplied URL via HTTP POST request.
+    """Perform a streaming upload of a file to the supplied URL via HTTP PUT request.
 
     Args:
         url: Where to upload the file
@@ -185,7 +185,7 @@ def upload_file(url: str, file_size: int, fp: IO[Any]) -> None:
             "User-Agent": "Mozilla/5.0",
         }
         conn.request(
-            "POST",
+            "PUT",
             url,
             body=fp,
             headers=headers,

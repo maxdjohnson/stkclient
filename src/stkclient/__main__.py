@@ -1,9 +1,10 @@
 """Command-line interface."""
 import argparse
 import os
+import readline  # noqa
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import stkclient
 
@@ -81,10 +82,13 @@ def arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(args: List[str]) -> None:
+def main(args: Optional[List[str]] = None) -> None:
     """Send To Kindle."""
     parser = arg_parser()
     parsed = parser.parse_args(args)
+    if not hasattr(parsed, "func"):
+        parser.print_usage()
+        exit(1)
     parsed.func(parsed)
 
 
@@ -118,7 +122,7 @@ def devices(args: argparse.Namespace) -> None:
         client = stkclient.Client.load(f)
     devices = client.get_owned_devices()
     for device in devices:
-        print(device)
+        print(f"{device.device_serial_number}: {device.device_name}")
 
 
 def send(args: argparse.Namespace) -> None:
@@ -154,4 +158,4 @@ def _get_client_path(args: argparse.Namespace) -> Path:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])  # pragma: no cover
+    main()  # pragma: no cover
