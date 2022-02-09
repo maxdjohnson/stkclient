@@ -68,7 +68,7 @@ def test_client_send_file(
     """Test client.send_file."""
     test_upload_url = "test_upload_url"
     test_device_id = "test_device_id"
-    test_file_contents = "test_file_contents\n"
+    test_file_contents = "test_file_contents"
     test_stk_token = "test_stk_token"  # noqa S105
     test_file_path = tmp_path / "test_file.txt"
     test_sku = "test_sku"

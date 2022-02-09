@@ -5,8 +5,6 @@ from typing import Generator
 import httpretty
 import pytest
 
-from stkclient import model
-
 
 @pytest.fixture(autouse=True)
 def disable_network_calls() -> Generator[None, None, None]:
@@ -18,8 +16,10 @@ def disable_network_calls() -> Generator[None, None, None]:
 
 
 @pytest.fixture()
-def device_info() -> model.DeviceInfo:
+def device_info() -> object:
     """Example DeviceInfo object."""
+    from stkclient import model  # Import at top-level causes typeguard to fail
+
     return model.DeviceInfo.from_xml(DEVICE_INFO_XML.strip().encode())
 
 
