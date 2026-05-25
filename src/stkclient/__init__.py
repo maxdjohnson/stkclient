@@ -8,7 +8,7 @@ import os
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any, BinaryIO, List, Mapping, TextIO, Union
+from typing import Any, BinaryIO, List, Mapping, Optional, TextIO, Union
 
 from stkclient import api, model, signer
 
@@ -132,18 +132,29 @@ class OAuth2:
         }
         return "https://www.amazon.com/ap/signin?" + urllib.parse.urlencode(q)
 
-    def create_client(self, redirect_url: str) -> Client:
+    def create_client(
+        self,
+        redirect_url: str,
+        device_serial_number: Optional[str] = None,
+    ) -> Client:
         """Creates a client with the authorization code from the redirect URL.
 
         Args:
             redirect_url: The final oauth redirect URL.
+            device_serial_number: Optional 32-char [A-Z0-9] pseudo-device serial
+                to register under. If not supplied, a random one is generated.
+                Use distinct serials per Amazon account when this library is used
+                for multiple accounts on the same host (otherwise later
+                registrations invalidate earlier private keys).
 
         Returns:
             Client instance.
         """
         code = _parse_authorization_code(redirect_url)
         access_token = api.token_exchange(code, self._verifier)
-        device_info = api.register_device_with_token(access_token)
+        device_info = api.register_device_with_token(
+            access_token, device_serial_number=device_serial_number
+        )
         return Client(device_info)
 
 

@@ -80,11 +80,35 @@ def token_exchange(authorization_code: str, code_verifier: str) -> str:
     return access_token
 
 
-def register_device_with_token(access_token: str) -> DeviceInfo:
+def _random_device_serial_number() -> str:
+    """Generate a random 32-character device serial number.
+
+    Amazon's pseudo-device serials are 32 chars of uppercase A-Z + 0-9. The
+    default device_serial_number was hardcoded in earlier versions, which caused
+    later registrations to invalidate earlier ones when the same library was
+    used for multiple Amazon accounts (Amazon rotates the device_private_key
+    bound to that serial on each registration).
+    """
+    import secrets
+    import string
+
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(32))
+
+
+def register_device_with_token(
+    access_token: str,
+    device_serial_number: Optional[str] = None,
+) -> DeviceInfo:
     """Creates a long-lived device capable of interacting with the STK API from an access_token.
 
     Args:
-        access_token: The access token obtained from token exchange
+        access_token: The access token obtained from token exchange.
+        device_serial_number: Optional 32-char [A-Z0-9] pseudo-device serial. If not
+            supplied, a fresh random serial is generated. Each Amazon account that
+            uses this library should have a distinct serial; otherwise registering a
+            new device under one account will invalidate the private key bound to
+            the same serial for any other account.
 
     Returns:
         DeviceInfo instance with the newly created device.
@@ -92,9 +116,11 @@ def register_device_with_token(access_token: str) -> DeviceInfo:
     Raises:
         APIError: The HTTP request failed.
     """
+    if device_serial_number is None:
+        device_serial_number = _random_device_serial_number()
     q = {
         "device_type": "A1K6D1WRW0MALS",
-        "device_serial_number": "ZYSQ37GQ5JQDAIKDZ3WYH6I74MJCVEGG",
+        "device_serial_number": device_serial_number,
         "pid": "D21NN3GG",
         "auth_token": access_token,
         "auth_token_type": "AccessToken",
