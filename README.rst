@@ -97,6 +97,9 @@ Credits
 
 Project structure from `@cjolowicz`_'s `Hypermodern Python Cookiecutter`_ template.
 
+`KindBeamer <https://github.com/jooray/kindbeamer>`__ is a cross-platform GUI
+built on the same protocol work.
+
 .. _@cjolowicz: https://github.com/cjolowicz
 .. _MIT license: https://opensource.org/licenses/MIT
 .. _PyPI: https://pypi.org/
