@@ -4,7 +4,6 @@ import base64
 import datetime
 import hashlib
 from dataclasses import dataclass
-from typing import Optional, cast
 
 import rsa
 from rsa import core, transform
@@ -29,12 +28,12 @@ class Signer:
         """Constructs a Signer instance from a DeviceInfo object."""
         k = rsa.PrivateKey.load_pkcs1(d.device_private_key.encode("utf-8"))
         return Signer(
-            device_private_key=cast(rsa.PrivateKey, k),
+            device_private_key=k,
             adp_token=d.adp_token,
         )
 
     def digest_header_for_request(
-        self, method: str, path: str, post_data: str, signing_date: Optional[str] = None
+        self, method: str, path: str, post_data: str, signing_date: str | None = None
     ) -> str:
         """Computes the request digest to be included in the X-ADP-Request-Digest header.
 
@@ -62,7 +61,7 @@ class Signer:
         return f"{bytes64}:{signing_date}"
 
     def _make_digest_data_for_request(
-        self, method: str, path: str, post_data: str, signing_date: Optional[str] = None
+        self, method: str, path: str, post_data: str, signing_date: str | None = None
     ) -> bytes:
         if signing_date is None:
             signing_date = _get_signing_date()
@@ -73,8 +72,8 @@ class Signer:
 # 2021-10-09T05:02:38Z
 def _get_signing_date() -> str:
     return (
-        datetime.datetime.utcnow()
-        .replace(microsecond=0, tzinfo=datetime.timezone.utc)
+        datetime.datetime.now(datetime.UTC)
+        .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")
     )

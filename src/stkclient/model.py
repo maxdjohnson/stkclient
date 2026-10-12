@@ -1,7 +1,8 @@
 """Send to Kindle API response and domain objects."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
-from typing import Any, List, Mapping, Optional
+from typing import Any
 
 try:
     from defusedxml.ElementTree import fromstring as xml_parse
@@ -33,7 +34,7 @@ class DeviceInfo:
     account_pool: str
     user_directed_id: str
     user_device_name: str
-    home_region: Optional[str] = None
+    home_region: str | None = None
 
     @staticmethod
     def from_dict(d: Mapping[str, Any]) -> "DeviceInfo":
@@ -84,7 +85,7 @@ class GetOwnedDevicesResponse:
         status_code: 0.
     """
 
-    owned_devices: List[OwnedDevice]
+    owned_devices: list[OwnedDevice]
     status_code: int
 
     @staticmethod

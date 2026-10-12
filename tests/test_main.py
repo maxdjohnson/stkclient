@@ -1,3 +1,5 @@
+"""Tests for the command-line interface."""
+
 from pathlib import Path
 
 import pytest

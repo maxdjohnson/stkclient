@@ -1,8 +1,9 @@
 """Unit tests of stkclient.api using httpretty-based mock."""
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping, Tuple
+from typing import Any
 from unittest.mock import Mock
 
 import httpretty
@@ -15,13 +16,32 @@ ADP_TOKEN_GOOD = "adp_token_good"  # noqa S105
 STK_TOKEN_GOOD = "9214b056b98b44238db291b3f2bb786c"  # noqa S105
 
 
+@pytest.mark.parametrize(
+    "body, expected",
+    [
+        (None, "HTTP error"),
+        (b'{"error":"unauthorized"}', 'HTTP error {"error": "unauthorized"}'),
+        (b'"upstream unavailable"', 'HTTP error "upstream unavailable"'),
+        (b"upstream unavailable", 'HTTP error "upstream unavailable"'),
+        (b'upstream "unavailable"\n', r'HTTP error "upstream \"unavailable\"\n"'),
+        (b"", 'HTTP error ""'),
+        (b"\xff", r'HTTP error "\ufffd"'),
+    ],
+)
+def test_api_error(body: bytes | None, expected: str) -> None:
+    """JSON-quote string error bodies, including non-JSON and invalid UTF-8 responses."""
+    error = api.APIError("HTTP error", body)
+    assert str(error) == expected
+    assert error.args == (expected,)
+
+
 @pytest.fixture()
 def token_exchange() -> None:
     """Fixture providing a mock implementation of https://api.amazon.com/auth/token."""
 
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> Tuple[int, Mapping[str, Any], str]:
+    ) -> tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Accept-Encoding": "identity",
             "Content-Length": request.headers.get("Content-Length"),
@@ -75,7 +95,7 @@ def register_device_with_token() -> None:
 
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> Tuple[int, Mapping[str, Any], str]:
+    ) -> tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Accept-Encoding": "identity",
             "Accept-Language": "en-US,*",
@@ -141,7 +161,7 @@ def test_get_list_of_owned_devices_good(signer: Mock) -> None:
 
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> Tuple[int, Mapping[str, Any], str]:
+    ) -> tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Host": "stkservice.amazon.com",
             "Accept": "application/json",
@@ -217,7 +237,7 @@ def test_get_upload_url_good(signer: Mock) -> None:
 
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> Tuple[int, Mapping[str, Any], str]:
+    ) -> tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Host": "stkservice.amazon.com",
             "Accept": "application/json",
@@ -264,7 +284,7 @@ def test_upload_file_good(tmp_path: Path) -> None:
 
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> Tuple[int, Mapping[str, Any], str]:
+    ) -> tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Accept-Encoding": "gzip, deflate",
             "Accept-Language": "en-US,*",
@@ -304,7 +324,7 @@ def test_send_to_kindle_good(
 
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> Tuple[int, Mapping[str, Any], str]:
+    ) -> tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
             "Host": "stkservice.amazon.com",
             "Accept": "application/json",

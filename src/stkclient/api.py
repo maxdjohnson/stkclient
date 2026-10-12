@@ -5,7 +5,8 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import IO, Any, List, Mapping, Optional
+from collections.abc import Mapping
+from typing import IO, Any
 
 from stkclient.model import (
     DeviceInfo,
@@ -26,14 +27,15 @@ DEFAULT_CLIENT_INFO = {
 class APIError(ValueError):
     """Represents errors returned in HTTP response of the API."""
 
-    def __init__(self, msg: str, body: Optional[bytes]):
+    def __init__(self, msg: str, body: bytes | None = None) -> None:  # noqa: B042
         """Construct an APIError with a given message and response body."""
         if body is not None:
             try:
-                body = json.loads(body)
-            except json.JSONDecodeError:
-                body = body
-            msg += f" {json.dumps(body)}"
+                detail = json.dumps(json.loads(body))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                detail = json.dumps(body.decode("utf-8", errors="replace"))
+            msg += f" {detail}"
+        # args stores the formatted message, and body=None lets pickle/copy reconstruct it unchanged.
         super().__init__(msg)
 
 
@@ -56,9 +58,9 @@ def token_exchange(authorization_code: str, code_verifier: str) -> str:
         "client_id": "658490dfb190e494030082836775981fa23be0c2425441860352ba0f55915b43002d",
         "code_algorithm": "SHA-256",
         "code_verifier": code_verifier,
-        "requested_token_type": "access_token",
+        "requested_token_type": "access_token",  # noqa: S105 - OAuth token type
         "source_token": authorization_code,
-        "source_token_type": "authorization_code",
+        "source_token_type": "authorization_code",  # noqa: S105 - OAuth grant type
     }
     req = urllib.request.Request(
         url="https://api.amazon.com/auth/token",
@@ -97,7 +99,7 @@ def register_device_with_token(access_token: str) -> DeviceInfo:
         "device_serial_number": "ZYSQ37GQ5JQDAIKDZ3WYH6I74MJCVEGG",
         "pid": "D21NN3GG",
         "auth_token": access_token,
-        "auth_token_type": "AccessToken",
+        "auth_token_type": "AccessToken",  # noqa: S105 - protocol value
         "software_version": "253",
         "os_version": "MacOSX_10.14.6_x64",
         "device_model": "Maxs MacBook Pro",
@@ -202,7 +204,7 @@ def upload_file(url: str, file_size: int, fp: IO[Any]) -> None:
 def send_to_kindle(
     signer: Signer,
     stk_token: str,
-    target_device_serial_numbers: List[str],
+    target_device_serial_numbers: list[str],
     *,
     author: str,
     title: str,
@@ -301,7 +303,7 @@ def _request(path: str, signer: Signer, body: Mapping[str, Any]) -> Mapping[str,
         return val
 
 
-def _text(e: urllib.error.HTTPError) -> Optional[bytes]:
+def _text(e: urllib.error.HTTPError) -> bytes | None:
     try:
         return e.read()
     except AttributeError:
