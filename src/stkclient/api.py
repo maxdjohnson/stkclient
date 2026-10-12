@@ -207,6 +207,7 @@ def send_to_kindle(
     author: str,
     title: str,
     format: str,
+    force_convert: bool = False,
 ) -> SendToKindleResponse:
     """Send an uploaded file to the specified kindle devices.
 
@@ -216,7 +217,9 @@ def send_to_kindle(
         target_device_serial_numbers: The devices to receive the file.
         author: The author of the document.
         title: The title of the document.
-        format: The format of the document.
+        format: The input format of the document.
+        force_convert: Convert PDFs to Kindle format instead of preserving their layout.
+            Other input formats are always converted to Kindle format.
 
     Returns:
         SendToKindleResponse containing metadata about the sent file.
@@ -233,7 +236,7 @@ def send_to_kindle(
         },
         "archive": True,
         "deliveryMechanism": "WIFI",
-        "outputFormat": "MOBI",
+        "outputFormat": "PDF" if format.lower() == "pdf" and not force_convert else "MOBI",
         "stkToken": stk_token,
         "targetDevices": target_device_serial_numbers,
     }
