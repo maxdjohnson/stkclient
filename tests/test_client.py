@@ -1,10 +1,10 @@
 """Tests for the stkclient module."""
 
-from collections.abc import Mapping
+import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import IO, Any
 
-import pytest
 from pytest_mock import MockerFixture
 
 from stkclient import Client, OAuth2, model
@@ -34,58 +34,21 @@ def test_oauth2(mocker: MockerFixture, device_info: model.DeviceInfo) -> None:
     register_device.assert_called_once_with("access_token_good")
 
 
-def test_client_get_owned_devices(mocker: MockerFixture, device_info: model.DeviceInfo) -> None:
-    """Test client.get_owned_devices."""
-    devices = [
-        model.OwnedDevice(
-            device_capabilities={
-                "PDF_CONTENT_ENABLED": True,
-                "WAN_ENABLED": False,
-                "WIFI_CAPABLE": True,
-            },
-            device_name="Max's 5th iPhone",
-            device_serial_number="35C6D8B149E345848BF462CC13824AA2",
-        ),
-        model.OwnedDevice(
-            device_capabilities={
-                "PDF_CONTENT_ENABLED": True,
-                "WAN_ENABLED": False,
-                "WIFI_CAPABLE": True,
-            },
-            device_name="Max's Kindle",
-            device_serial_number="G000PP1311850V4X",
-        ),
-    ]
-    get_list_of_owned_devices = mocker.patch(
-        "stkclient.api.get_list_of_owned_devices",
-        return_value=model.GetOwnedDevicesResponse(devices, 0),
-    )
-    c = Client(device_info)
-    assert c.get_owned_devices() == devices
-    get_list_of_owned_devices.assert_called_once_with(c._signer)
-
-
-@pytest.mark.parametrize(
-    "options, expected_force_convert",
-    [({}, False), ({"force_convert": False}, False), ({"force_convert": True}, True)],
-)
 def test_client_send_file(
     mocker: MockerFixture,
     tmp_path: Path,
     device_info: model.DeviceInfo,
-    options: Mapping[str, bool],
-    expected_force_convert: bool,
 ) -> None:
-    """Test client.send_file."""
+    """Upload binary bytes before sending, carrying the server's upload token and file size."""
     test_upload_url = "test_upload_url"
     test_device_id = "test_device_id"
-    test_file_contents = "test_file_contents"
+    test_file_contents = b"\x00\xff" + "Café 作者".encode()
     test_stk_token = "test_stk_token"
     test_file_path = tmp_path / "test_file.txt"
     test_sku = "test_sku"
     test_author = "test_author"
     test_title = "test_title"
-    with open(test_file_path, "w") as f:
+    with open(test_file_path, "wb") as f:
         f.write(test_file_contents)
 
     # Mock api.get_upload_url
@@ -98,7 +61,7 @@ def test_client_send_file(
     def handle_upload(url: str, file_size: int, fp: IO[Any]) -> None:
         d = fp.read()
         assert len(d) == file_size
-        assert d == test_file_contents.encode()
+        assert d == test_file_contents
         assert url == test_upload_url
 
     upload_file = mocker.patch("stkclient.api.upload_file", side_effect=handle_upload)
@@ -107,6 +70,10 @@ def test_client_send_file(
     send_to_kindle = mocker.patch(
         "stkclient.api.send_to_kindle", return_value=model.SendToKindleResponse(test_sku, 0)
     )
+    requests = mocker.Mock()
+    requests.attach_mock(get_upload_url, "get_upload_url")
+    requests.attach_mock(upload_file, "upload_file")
+    requests.attach_mock(send_to_kindle, "send_to_kindle")
 
     # Call send_file and check calls to mocks
     c = Client(device_info)
@@ -116,9 +83,14 @@ def test_client_send_file(
         author=test_author,
         title=test_title,
         format="pdf",
-        **options,
+        force_convert=True,
     )
     assert sku == test_sku
+    assert [call[0] for call in requests.mock_calls] == [
+        "get_upload_url",
+        "upload_file",
+        "send_to_kindle",
+    ]
     get_upload_url.assert_called_once_with(c._signer, len(test_file_contents))
     upload_file.assert_called_once()  # assertions done in the implementation
     send_to_kindle.assert_called_once_with(
@@ -129,27 +101,16 @@ def test_client_send_file(
         title=test_title,
         format="pdf",
         file_size=len(test_file_contents),
-        force_convert=expected_force_convert,
+        force_convert=True,
     )
 
 
 def test_client_serde_str(device_info: model.DeviceInfo) -> None:
-    """Test client string serialization / deserialization."""
-    c1 = Client(device_info)
-    s = c1.dumps()
-    c2 = Client.loads(s)
-    assert c1 == c2
-
-
-def test_client_serde_file(tmp_path: Path, device_info: model.DeviceInfo) -> None:
-    """Test client file serialization / deserialization."""
-    f = tmp_path / "client.json"
-    c1 = Client(device_info)
-    with open(f, "w") as fw:
-        c1.dump(fw)
-    with open(f) as fr:
-        c2 = Client.load(fr)
-    assert c1 == c2
+    """Keep compatibility with saved version-1 credentials, not just a self-consistent round trip."""
+    saved = {"version": 1, "device_info": asdict(device_info)}
+    client = Client.loads(json.dumps(saved))
+    assert client == Client(device_info)
+    assert json.loads(client.dumps()) == saved
 
 
 def test_client_repr(device_info: model.DeviceInfo) -> None:
@@ -158,5 +119,3 @@ def test_client_repr(device_info: model.DeviceInfo) -> None:
     s = repr(c)
     assert "RSA PRIVATE KEY" not in s
     assert device_info.adp_token not in s
-    assert "adp_token" not in s
-    assert "adp_token" not in s

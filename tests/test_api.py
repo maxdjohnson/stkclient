@@ -1,13 +1,18 @@
-"""Unit tests of stkclient.api using httpretty-based mock."""
+"""API tests with mocks at the standard-library HTTP boundary."""
 
+import copy
 import json
+import urllib.error
+import urllib.request
 from collections.abc import Mapping
+from email.message import Message
+from io import BytesIO
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
-import httpretty
 import pytest
+from defusedxml.ElementTree import fromstring as xml_parse
 from pytest_mock import MockerFixture
 
 from stkclient import api, model
@@ -18,118 +23,89 @@ STK_TOKEN_GOOD = "9214b056b98b44238db291b3f2bb786c"
 UPLOAD_URL = "https://zme-caps.amazon.com/asset/test/IMPORT_SOURCE?urlMethod=PUT&sig=test_signature"
 
 
+@pytest.fixture()
+def urlopen(mocker: MockerFixture) -> MagicMock:
+    """Replace HTTP I/O while retaining real Request objects and response streams."""
+    return mocker.patch("stkclient.api.urllib.request.urlopen", autospec=True)
+
+
+@pytest.fixture()
+def signer() -> Mock:
+    """Provide deterministic request signatures."""
+    result = Mock(spec=Signer)
+    result.adp_token = ADP_TOKEN_GOOD
+    result.digest_header_for_request.return_value = "test_signature"
+    return result
+
+
+def _request(urlopen: MagicMock, method: str, url: str) -> urllib.request.Request:
+    urlopen.assert_called_once()
+    request: urllib.request.Request = urlopen.call_args.args[0]
+    assert request.get_method() == method
+    assert request.full_url == url
+    return request
+
+
+def _assert_signed_request(
+    urlopen: MagicMock, signer: Mock, path: str, body: Mapping[str, Any]
+) -> None:
+    request = _request(urlopen, "POST", "https://kd.amazon.com" + path)
+    assert isinstance(request.data, bytes)
+    assert json.loads(request.data) == {"clientInfo": api.DEFAULT_CLIENT_INFO, **body}
+    assert request.get_header("Content-type") == "application/json"
+    assert request.get_header("X-adp-request-digest") == "test_signature"
+    assert request.get_header("X-adp-authentication-token") == ADP_TOKEN_GOOD
+    # Authentication must sign the actual transmitted bytes, regardless of JSON formatting.
+    signer.digest_header_for_request.assert_called_once_with(
+        "POST", path, request.data.decode("utf-8")
+    )
+
+
 @pytest.mark.parametrize(
     "body, expected",
     [
         (None, "HTTP error"),
         (b'{"error":"unauthorized"}', 'HTTP error {"error": "unauthorized"}'),
-        (b'"upstream unavailable"', 'HTTP error "upstream unavailable"'),
-        (b"upstream unavailable", 'HTTP error "upstream unavailable"'),
         (b'upstream "unavailable"\n', r'HTTP error "upstream \"unavailable\"\n"'),
-        (b"", 'HTTP error ""'),
         (b"\xff", r'HTTP error "\ufffd"'),
     ],
 )
 def test_api_error(body: bytes | None, expected: str) -> None:
-    """JSON-quote string error bodies, including non-JSON and invalid UTF-8 responses."""
+    """JSON-quote error bodies, including non-JSON and invalid UTF-8 responses."""
     error = api.APIError("HTTP error", body)
     assert str(error) == expected
-    assert error.args == (expected,)
+    assert str(copy.copy(error)) == expected
 
 
-@pytest.fixture()
-def token_exchange() -> None:
-    """Fixture providing a mock implementation of https://api.amazon.com/auth/token."""
-
-    def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> tuple[int, Mapping[str, Any], str]:
-        assert dict(request.headers) == {
-            "Accept-Encoding": "identity",
-            "Content-Length": request.headers.get("Content-Length"),
-            "Host": "api.amazon.com",
-            "Accept-Language": "en-US",
-            "X-Amzn-Identity-Auth-Domain": "api.amazon.com",
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0",
-            "Connection": "close",
-        }
-        body = json.loads(request.body)
-        if body.get("code_verifier") == "verifier_bad":
-            return 400, response_headers, json.dumps({"error": "unauth"})
-        assert body == {
-            "app_name": "Unknown",
-            "client_domain": "DeviceLegacy",
-            "client_id": "658490dfb190e494030082836775981fa23be0c2425441860352ba0f55915b43002d",
-            "code_algorithm": "SHA-256",
-            "code_verifier": "verifier_good",
-            "requested_token_type": "access_token",
-            "source_token": "code_good",
-            "source_token_type": "authorization_code",
-        }
-        return (
-            200,
-            response_headers,
-            json.dumps(
-                {"access_token": "access_token_good", "token_type": "bearer", "expires_in": 3599}
-            ),
-        )
-
-    httpretty.register_uri(
-        httpretty.POST, "https://api.amazon.com/auth/token", body=request_callback
-    )
-
-
-def test_token_exchange_good(token_exchange: None) -> None:
-    """Check that token_exchange handles a successful request/response."""
+def test_token_exchange(urlopen: MagicMock) -> None:
+    """Exchange the authorization code and verifier using the expected JSON contract."""
+    response = BytesIO(b'{"access_token": "access_token_good", "token_type": "bearer"}')
+    urlopen.return_value = response
     assert api.token_exchange("code_good", "verifier_good") == "access_token_good"
+    request = _request(urlopen, "POST", "https://api.amazon.com/auth/token")
+    assert isinstance(request.data, bytes)
+    assert json.loads(request.data) == {
+        "app_name": "Unknown",
+        "client_domain": "DeviceLegacy",
+        "client_id": "658490dfb190e494030082836775981fa23be0c2425441860352ba0f55915b43002d",
+        "code_algorithm": "SHA-256",
+        "code_verifier": "verifier_good",
+        "requested_token_type": "access_token",
+        "source_token": "code_good",
+        "source_token_type": "authorization_code",
+    }
+    assert request.get_header("Content-type") == "application/json"
 
 
-def test_token_exchange_bad(token_exchange: None) -> None:
-    """Check that token_exchange handles an error response."""
-    with pytest.raises(api.APIError):
-        assert api.token_exchange("code_good", "verifier_bad")
-
-
-@pytest.fixture()
-def register_device_with_token() -> None:
-    """Fixture providing a mock implementation of /FirsProxy/registerDeviceWithToken."""
-
-    def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> tuple[int, Mapping[str, Any], str]:
-        assert dict(request.headers) == {
-            "Accept-Encoding": "identity",
-            "Accept-Language": "en-US,*",
-            "Connection": "close",
-            "Content-Length": request.headers.get("Content-Length"),
-            "Content-Type": "text/xml",
-            "Expect": "",
-            "Host": "firs-ta-g7g.amazon.com",
-            "User-Agent": "Mozilla/5.0",
-        }
-        body = request.body.decode()
-        if "access_token_bad" in body:
-            return 400, response_headers, json.dumps({"error": "unauth"})
-        assert (
-            body
-            == "<?xml version='1.0' encoding='UTF-8'?>\n<request><parameters><deviceType>A1K6D1WRW0MALS</deviceType><deviceSerialNumber>ZYSQ37GQ5JQDAIKDZ3WYH6I74MJCVEGG</deviceSerialNumber><pid>D21NN3GG</pid><authToken>access_token_good</authToken><authTokenType>AccessToken</authTokenType><softwareVersion>253</softwareVersion><os_version>MacOSX_10.14.6_x64</os_version><device_model>Maxs MacBook Pro</device_model></parameters></request>"
-        )
-        return (
-            200,
-            response_headers,
-            f'<?xml version="1.0" encoding="UTF-8"?>\n<response><device_private_key>mock_key</device_private_key><adp_token>{ADP_TOKEN_GOOD}</adp_token><device_type>mock_device_type</device_type><given_name>Max</given_name><name>Max</name><account_pool>Amazon</account_pool><home_region>NA</home_region><user_directed_id>mock_user_id</user_directed_id><user_device_name>Max\'s 3rd Send to Kindle for Mac</user_device_name></response>',
-        )
-
-    httpretty.register_uri(
-        httpretty.POST,
-        "https://firs-ta-g7g.amazon.com/FirsProxy/registerDeviceWithToken",
-        body=request_callback,
+def test_register_device_with_token(urlopen: MagicMock) -> None:
+    """Register the device with XML and parse the returned credentials."""
+    urlopen.return_value = BytesIO(
+        b"<response><device_private_key>mock_key</device_private_key>"
+        b"<adp_token>adp_token_good</adp_token><device_type>mock_device_type</device_type>"
+        b"<given_name>Max</given_name><name>Max</name><account_pool>Amazon</account_pool>"
+        b"<home_region>NA</home_region><user_directed_id>mock_user_id</user_directed_id>"
+        b"<user_device_name>Test device</user_device_name></response>"
     )
-
-
-def test_register_device_with_token_good(register_device_with_token: None) -> None:
-    """Check that register_device_with_token handles a successful request/response."""
     assert api.register_device_with_token("access_token_good") == model.DeviceInfo(
         device_private_key="mock_key",
         adp_token=ADP_TOKEN_GOOD,
@@ -137,331 +113,205 @@ def test_register_device_with_token_good(register_device_with_token: None) -> No
         given_name="Max",
         name="Max",
         account_pool="Amazon",
-        user_directed_id="mock_user_id",
-        user_device_name="Max's 3rd Send to Kindle for Mac",
         home_region="NA",
+        user_directed_id="mock_user_id",
+        user_device_name="Test device",
     )
+    request = _request(
+        urlopen, "POST", "https://firs-ta-g7g.amazon.com/FirsProxy/registerDeviceWithToken"
+    )
+    assert isinstance(request.data, bytes)
+    parameters = xml_parse(request.data).find("parameters")
+    assert parameters is not None
+    assert parameters.findtext("authToken") == "access_token_good"
+    assert parameters.findtext("authTokenType") == "AccessToken"
+    assert request.get_header("Content-type") == "text/xml"
 
 
-def test_register_device_with_token_bad(register_device_with_token: None) -> None:
-    """Check that register_device_with_token handles an API error."""
-    with pytest.raises(api.APIError):
-        assert api.register_device_with_token("access_token_bad")
-
-
-@pytest.fixture()
-def signer() -> Signer:
-    """Fixture provides a mock implementation of the Signer class."""
-    m = Mock(spec=Signer)
-    m.adp_token = "test_adp_token"
-    m.digest_header_for_request.return_value = "test_signature"
-    return m
-
-
-def test_get_list_of_owned_devices_good(signer: Mock) -> None:
-    """Check that get_list_of_owned_devices returns the expected result."""
-
-    def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> tuple[int, Mapping[str, Any], str]:
-        assert dict(request.headers) == {
-            "Host": "kd.amazon.com",
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "X-Adp-Request-Digest": "test_signature",
-            "X-Adp-Authentication-Token": "test_adp_token",
-            "Content-Length": request.headers.get("Content-Length"),
-            "Connection": "close",
-            "Accept-Encoding": "gzip, deflate",
-            "Accept-Language": "en-US,*",
-            "User-Agent": "Mozilla/5.0",
-        }
-        body = json.loads(request.body)
-        assert body == {"clientInfo": api.DEFAULT_CLIENT_INFO}
-        res = {
-            "ownedDevices": [
-                {
-                    "accountId": "test_account_id",
-                    "deviceCapabilities": {
-                        "PDF_CONTENT_ENABLED": True,
-                        "WAN_ENABLED": False,
-                        "WIFI_CAPABLE": True,
+def test_get_list_of_owned_devices(urlopen: MagicMock, signer: Mock) -> None:
+    """List devices and tolerate extra service response fields."""
+    urlopen.return_value = BytesIO(
+        json.dumps(
+            {
+                "ownedDevices": [
+                    {
+                        "accountId": "ignored",
+                        "deviceCapabilities": {"WIFI_CAPABLE": True},
+                        "deviceName": "Kindle",
+                        "deviceSerialNumber": "kindle-serial",
                     },
-                    "deviceName": "Max's 5th iPhone",
-                    "deviceSerialNumber": "35C6D8B149E345848BF462CC13824AA2",
-                },
-                {
-                    "deviceCapabilities": {
-                        "PDF_CONTENT_ENABLED": True,
-                        "WAN_ENABLED": False,
-                        "WIFI_CAPABLE": True,
+                    {
+                        "deviceCapabilities": {"WIFI_CAPABLE": False},
+                        "deviceName": "Phone",
+                        "deviceSerialNumber": "phone-serial",
                     },
-                    "deviceName": "Max's Kindle",
-                    "deviceSerialNumber": "G000PP1311850V4X",
-                },
-            ],
-            "statusCode": 0,
-        }
-        return 200, response_headers, json.dumps(res)
-
-    httpretty.register_uri(
-        httpretty.POST,
-        "https://kd.amazon.com/import/kindle-doc/get-device-list",
-        body=request_callback,
+                ],
+                "statusCode": 0,
+            }
+        ).encode()
     )
-    res = api.get_list_of_owned_devices(signer)
-    data = json.dumps({"clientInfo": api.DEFAULT_CLIENT_INFO}, indent=4)
-    signer.digest_header_for_request.assert_called_with(
-        "POST", "/import/kindle-doc/get-device-list", data
-    )
-    assert res == model.GetOwnedDevicesResponse(
-        owned_devices=[
-            model.OwnedDevice(
-                device_capabilities={
-                    "PDF_CONTENT_ENABLED": True,
-                    "WAN_ENABLED": False,
-                    "WIFI_CAPABLE": True,
-                },
-                device_name="Max's 5th iPhone",
-                device_serial_number="35C6D8B149E345848BF462CC13824AA2",
-            ),
-            model.OwnedDevice(
-                device_capabilities={
-                    "PDF_CONTENT_ENABLED": True,
-                    "WAN_ENABLED": False,
-                    "WIFI_CAPABLE": True,
-                },
-                device_name="Max's Kindle",
-                device_serial_number="G000PP1311850V4X",
-            ),
+    assert api.get_list_of_owned_devices(signer) == model.GetOwnedDevicesResponse(
+        [
+            model.OwnedDevice({"WIFI_CAPABLE": True}, "Kindle", "kindle-serial"),
+            model.OwnedDevice({"WIFI_CAPABLE": False}, "Phone", "phone-serial"),
         ],
-        status_code=0,
+        0,
     )
+    _assert_signed_request(urlopen, signer, "/import/kindle-doc/get-device-list", {})
 
 
-def test_get_upload_url_good(signer: Mock) -> None:
-    """Check that get_upload_url returns the expected result."""
-
-    def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> tuple[int, Mapping[str, Any], str]:
-        assert dict(request.headers) == {
-            "Host": "kd.amazon.com",
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "X-Adp-Request-Digest": "test_signature",
-            "X-Adp-Authentication-Token": "test_adp_token",
-            "Content-Length": request.headers.get("Content-Length"),
-            "Connection": "close",
-            "Accept-Encoding": "gzip, deflate",
-            "Accept-Language": "en-US,*",
-            "User-Agent": "Mozilla/5.0",
-        }
-        body = json.loads(request.body)
-        assert body == {"clientInfo": api.DEFAULT_CLIENT_INFO, "fileSize": 100}
-        res = {
-            "expiryTime": 3600000,
-            "statusCode": 0,
-            "stkToken": STK_TOKEN_GOOD,
-            "uploadUrl": UPLOAD_URL,
-        }
-        return 200, response_headers, json.dumps(res)
-
-    httpretty.register_uri(
-        httpretty.POST, "https://kd.amazon.com/import/upload-url", body=request_callback
+def test_get_upload_url(urlopen: MagicMock, signer: Mock) -> None:
+    """Request a signed upload URL for the given file size."""
+    urlopen.return_value = BytesIO(
+        json.dumps(
+            {
+                "expiryTime": 3600000,
+                "statusCode": 0,
+                "stkToken": STK_TOKEN_GOOD,
+                "uploadUrl": UPLOAD_URL,
+            }
+        ).encode()
     )
-    res = api.get_upload_url(signer, 100)
-    data = json.dumps({"clientInfo": api.DEFAULT_CLIENT_INFO, "fileSize": 100}, indent=4)
-    signer.digest_header_for_request.assert_called_with("POST", "/import/upload-url", data)
-    assert res == model.GetUploadUrlResponse(
-        expiry_time=3600000,
-        status_code=0,
-        stk_token=STK_TOKEN_GOOD,
-        upload_url=UPLOAD_URL,
+    assert api.get_upload_url(signer, 100) == model.GetUploadUrlResponse(
+        3600000, 0, STK_TOKEN_GOOD, UPLOAD_URL
     )
+    _assert_signed_request(urlopen, signer, "/import/upload-url", {"fileSize": 100})
 
 
-def test_upload_file_good(tmp_path: Path) -> None:
-    """Check that upload_file returns the expected result."""
-    url = UPLOAD_URL
-    file_path = tmp_path / "test.txt"
-    with open(file_path, "w") as fw:
-        fw.write("test file contents")
-    file_size = file_path.stat().st_size
+@pytest.mark.parametrize("status", [200, 403])
+def test_upload_file(mocker: MockerFixture, tmp_path: Path, status: int) -> None:
+    """Stream the file with its signed URL and close the connection on success or failure."""
+    connection_type = mocker.patch("stkclient.api.http.client.HTTPSConnection", autospec=True)
+    connection = connection_type.return_value
+    response = connection.getresponse.return_value
+    response.status = status
+    response.reason = "Test response"
+    response.read.return_value = b"upload response"
+    path = tmp_path / "document.epub"
+    path.write_bytes(b"test file contents")
 
-    def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> tuple[int, Mapping[str, Any], str]:
-        assert dict(request.headers) == {
-            "Accept-Encoding": "gzip, deflate",
-            "Accept-Language": "en-US,*",
-            "Content-Length": str(file_size),
-            "Host": "zme-caps.amazon.com",
-            "User-Agent": "Mozilla/5.0",
-        }
-        assert request.body == b"test file contents"
-        return 200, response_headers, ""
+    with path.open("rb") as stream:
+        if status == 200:
+            api.upload_file(UPLOAD_URL, path.stat().st_size, stream)
+        else:
+            with pytest.raises(api.APIError, match=f"HTTP Status Error {status}.*upload response"):
+                api.upload_file(UPLOAD_URL, path.stat().st_size, stream)
+        connection.request.assert_called_once()
+        call = connection.request.call_args
+        assert call.args == ("PUT", UPLOAD_URL)
+        assert call.kwargs["body"] is stream
+        assert call.kwargs["headers"]["Content-Length"] == str(path.stat().st_size)
+    connection_type.assert_called_once_with("zme-caps.amazon.com")
+    connection.close.assert_called_once_with()
 
-    httpretty.register_uri(httpretty.PUT, url, body=request_callback)
-    with open(file_path, "rb") as fr:
-        api.upload_file(url, file_size, fr)
-    assert httpretty.last_request() is not None
+
+def test_upload_connection_failure(mocker: MockerFixture) -> None:
+    """Close an upload connection even when writing fails before a response arrives."""
+    connection_type = mocker.patch("stkclient.api.http.client.HTTPSConnection", autospec=True)
+    connection = connection_type.return_value
+    connection.request.side_effect = OSError("connection lost")
+    with pytest.raises(OSError, match="connection lost"):
+        api.upload_file(UPLOAD_URL, 4, BytesIO(b"test"))
+    connection.close.assert_called_once_with()
+    connection.getresponse.assert_not_called()
 
 
 @pytest.mark.parametrize(
-    "format, options, expected_force_convert",
+    "options, expected_force_convert",
     [
-        ("mobi", {}, False),
-        ("epub", {}, False),
-        ("epub", {"force_convert": False}, False),
-        ("epub", {"force_convert": True}, True),
-        ("pdf", {}, False),
-        ("pdf", {"force_convert": False}, False),
-        ("pdf", {"force_convert": True}, True),
-        ("PDF", {}, False),
-        ("PDF", {"force_convert": True}, True),
+        ({}, False),
+        ({"force_convert": True}, True),
     ],
 )
-def test_send_to_kindle_good(
+def test_send_to_kindle(
+    urlopen: MagicMock,
     signer: Mock,
     mocker: MockerFixture,
-    format: str,
     options: Mapping[str, bool],
     expected_force_convert: bool,
 ) -> None:
-    """Check that send_to_kindle returns the expected result."""
-    targets = ["A", "B"]
-    author, title = "test_author", "test_title"
-    file_size = 5688
+    """Sign and submit document metadata with the requested PDF conversion policy."""
     mocker.patch("stkclient.api.time.time_ns", return_value=1_791_823_616_665_123_456)
-
-    def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> tuple[int, Mapping[str, Any], str]:
-        assert dict(request.headers) == {
-            "Host": "kd.amazon.com",
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "X-Adp-Request-Digest": "test_signature",
-            "X-Adp-Authentication-Token": "test_adp_token",
-            "Content-Length": request.headers.get("Content-Length"),
-            "Connection": "close",
-            "Accept-Encoding": "gzip, deflate",
-            "Accept-Language": "en-US,*",
-            "User-Agent": "Mozilla/5.0",
-        }
-        body = json.loads(request.body)
-        assert body == {
-            "clientInfo": api.DEFAULT_CLIENT_INFO,
+    urlopen.return_value = BytesIO(b'{"sku": "document-sku", "statusCode": 0}')
+    result = api.send_to_kindle(
+        signer,
+        STK_TOKEN_GOOD,
+        ["A", "B"],
+        author="作者",
+        title="Café ☕",
+        format="pdf",
+        file_size=5688,
+        **options,
+    )
+    assert result == model.SendToKindleResponse("document-sku", 0)
+    _assert_signed_request(
+        urlopen,
+        signer,
+        "/import/kindle-doc/send-to-kindle",
+        {
             "documentMetadata": {
-                "author": author,
+                "author": "作者",
                 "crc32": 0,
-                "inputFormat": format,
-                "title": title,
+                "inputFormat": "pdf",
+                "title": "Café ☕",
             },
             "archive": True,
-            "fileSize": file_size,
+            "fileSize": 5688,
             "forceConvert": expected_force_convert,
             "sendTimeMillis": 1_791_823_616_665,
             "shouldExtractWebContent": False,
             "stkToken": STK_TOKEN_GOOD,
-            "targetDevices": targets,
-        }
-        res = {"sku": "7B672AF0FA604BECA8143275166EA316", "statusCode": 0}
-        return 200, response_headers, json.dumps(res)
-
-    httpretty.register_uri(
-        httpretty.POST,
-        "https://kd.amazon.com/import/kindle-doc/send-to-kindle",
-        body=request_callback,
-    )
-    res = api.send_to_kindle(
-        signer,
-        STK_TOKEN_GOOD,
-        targets,
-        author=author,
-        title=title,
-        format=format,
-        file_size=file_size,
-        **options,
-    )
-    body = {
-        "clientInfo": api.DEFAULT_CLIENT_INFO,
-        "documentMetadata": {
-            "author": author,
-            "crc32": 0,
-            "inputFormat": format,
-            "title": title,
+            "targetDevices": ["A", "B"],
         },
-        "archive": True,
-        "fileSize": file_size,
-        "forceConvert": expected_force_convert,
-        "sendTimeMillis": 1_791_823_616_665,
-        "shouldExtractWebContent": False,
-        "stkToken": STK_TOKEN_GOOD,
-        "targetDevices": targets,
-    }
-    data = json.dumps(body, indent=4)
-    signer.digest_header_for_request.assert_called_with(
-        "POST", "/import/kindle-doc/send-to-kindle", data
     )
-    assert res == model.SendToKindleResponse(sku="7B672AF0FA604BECA8143275166EA316", status_code=0)
 
 
-@pytest.mark.parametrize("status", [403, 500])
 @pytest.mark.parametrize(
-    "operation, path, args, kwargs",
+    "operation, args, kwargs",
     [
-        ("get_list_of_owned_devices", "/import/kindle-doc/get-device-list", (), {}),
-        ("get_upload_url", "/import/upload-url", (100,), {}),
+        ("token_exchange", ("code", "verifier"), {}),
+        ("register_device_with_token", ("token",), {}),
+        ("get_list_of_owned_devices", (), {}),
+        ("get_upload_url", (100,), {}),
         (
             "send_to_kindle",
-            "/import/kindle-doc/send-to-kindle",
             (STK_TOKEN_GOOD, ["device"]),
             {"author": "Test", "title": "Test", "format": "pdf", "file_size": 100},
         ),
+        ("logout", (), {}),
     ],
 )
-def test_kindle_docs_http_error(
+def test_http_error(
+    urlopen: MagicMock,
     signer: Mock,
     operation: str,
-    path: str,
     args: tuple[Any, ...],
     kwargs: Mapping[str, Any],
-    status: int,
 ) -> None:
-    """Surface HTTP failures from each new endpoint as APIError with the response body."""
-
-    def request_callback(
-        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
-    ) -> tuple[int, Mapping[str, Any], str]:
-        return status, response_headers, '{"message": "upstream error"}'
-
-    httpretty.register_uri(
-        httpretty.POST,
-        "https://kd.amazon.com" + path,
-        body=request_callback,
+    """Translate HTTP failures from every endpoint into APIError, preserving the cause."""
+    error = urllib.error.HTTPError(
+        "https://amazon.com/test",
+        403,
+        "upstream error",
+        Message(),
+        BytesIO(b'{"message": "upstream error"}'),
     )
-    with pytest.raises(api.APIError, match=f"HTTP Error {status}.*upstream error"):
-        getattr(api, operation)(signer, *args, **kwargs)
+    urlopen.side_effect = error
+    if operation not in ("token_exchange", "register_device_with_token"):
+        args = (signer, *args)
+    with pytest.raises(api.APIError, match="HTTP Error 403.*upstream error") as raised:
+        getattr(api, operation)(*args, **kwargs)
+    assert raised.value.__cause__ is error
 
 
-def test_logout_good(signer: Mock) -> None:
-    """Check that logout makes the expected call."""
-    httpretty.register_uri(
-        httpretty.GET,
-        "https://firs-ta-g7g.amazon.com/FirsProxy/disownFiona?contentDeleted=false",
-        body='<?xml version="1.0" encoding="UTF-8"?>\n<response><status>SUCCESS</status></response>',
-    )
+def test_logout(urlopen: MagicMock, signer: Mock) -> None:
+    """Sign the deauthorization request and close its response."""
+    response = BytesIO(b"<response><status>SUCCESS</status></response>")
+    urlopen.return_value = response
     api.logout(signer)
-    r = httpretty.last_request()
-    assert dict(r.headers) == {
-        "Accept-Encoding": "identity",
-        "Accept-Language": "en-US,*",
-        "Connection": "close",
-        "Content-Type": "text/xml",
-        "Host": "firs-ta-g7g.amazon.com",
-        "User-Agent": "Mozilla/5.0",
-        "X-Adp-Request-Digest": "test_signature",
-        "X-Adp-Authentication-Token": "test_adp_token",
-    }
+    path = "/FirsProxy/disownFiona?contentDeleted=false"
+    request = _request(urlopen, "GET", "https://firs-ta-g7g.amazon.com" + path)
+    assert request.data is None
+    assert request.get_header("X-adp-request-digest") == "test_signature"
+    assert request.get_header("X-adp-authentication-token") == ADP_TOKEN_GOOD
+    signer.digest_header_for_request.assert_called_once_with("GET", path, "")

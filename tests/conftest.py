@@ -1,25 +1,16 @@
 """Shared fixtures."""
 
-import ssl
-from collections.abc import Generator
-
-import httpretty
 import pytest
+from pytest_mock import MockerFixture
 
 
 @pytest.fixture(autouse=True)
-def disable_network_calls(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
-    """Mocks network using httpretty."""
-    httpretty.enable(verbose=True, allow_net_connect=False)
-    try:
-        with monkeypatch.context() as patcher:
-            # Python 3.14 binds functools.partial as a method. HTTPretty's
-            # replacement expects only the socket, without an SSLContext receiver.
-            patcher.setattr(ssl.SSLContext, "wrap_socket", staticmethod(ssl.SSLContext.wrap_socket))
-            yield
-    finally:
-        httpretty.disable()
-        httpretty.reset()
+def disable_network_calls(mocker: MockerFixture) -> None:
+    """Fail any test that attempts an unmocked network connection."""
+    for method in ("connect", "connect_ex"):
+        mocker.patch(
+            f"socket.socket.{method}", side_effect=AssertionError("Unexpected network connection")
+        )
 
 
 @pytest.fixture()
