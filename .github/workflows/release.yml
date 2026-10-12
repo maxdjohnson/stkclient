@@ -1,107 +1,76 @@
-name: Release
+name: Publish release
 
 on:
-  push:
-    branches:
-      - main
-      - master
-  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub release tag to publish or retry (for example v0.2.1)
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: publish-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
 jobs:
-  release:
-    name: Release
+  resolve:
+    name: Resolve release commit
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: read
     outputs:
-      tag: ${{ steps.check-version.outputs.tag }}
+      sha: ${{ steps.resolve.outputs.sha }}
     steps:
-      - name: Check out the repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          fetch-depth: 2
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.13.0"
-          enable-cache: true
-
-      - name: Check lockfile
-        run: uv lock --check
-
-      - name: Check if there is a parent commit
-        id: check-parent-commit
-        if: github.event_name == 'push'
-        run: |
-          echo "sha=$(git rev-parse --verify --quiet HEAD^ || true)" >> "$GITHUB_OUTPUT"
-
-      - name: Detect and tag new version
-        id: check-version
-        if: steps.check-parent-commit.outputs.sha
-        uses: salsify/action-detect-and-tag-new-version@v2.0.3
-        with:
-          version-command: uv version --short
-
-      - name: Bump version for developmental release
-        if: github.event_name == 'push' && !steps.check-version.outputs.tag
-        run: |
-          uv version --bump patch --no-sync
-          version=$(uv version --short)
-          uv version "$version.dev$(date +%s)" --no-sync
-
-      - name: Build package
-        run: |
-          uv lock --check
-          uv build --no-sources
-
-      - name: Upload distributions
-        uses: actions/upload-artifact@v7
-        with:
-          name: dist
-          path: dist/
-          if-no-files-found: error
-
-      - name: Publish package on PyPI
-        if: steps.check-version.outputs.tag
-        uses: pypa/gh-action-pypi-publish@v1.14.2
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_TOKEN }}
-
-      - name: Publish the release notes
-        if: github.event_name == 'push'
-        uses: release-drafter/release-drafter@v7
-        with:
-          publish: ${{ steps.check-version.outputs.tag != '' }}
-          tag: ${{ steps.check-version.outputs.tag }}
+      - name: Verify release and resolve immutable commit
+        id: resolve
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$(gh release view "$RELEASE_TAG" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" = false
+          sha=$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")
+          git merge-base --is-ancestor "$sha" origin/main
+          git checkout --detach "$sha"
+          test "v$(uv version --short)" = "$RELEASE_TAG"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-  testpypi:
-    name: Publish development package on TestPyPI
-    needs: release
-    if: github.event_name == 'push' && !needs.release.outputs.tag
+  ci:
+    name: Validate release
+    needs: resolve
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/tests.yml
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  publish:
+    name: Publish to PyPI
+    needs: [resolve, ci]
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/stkclient
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - name: Download distributions
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: dist
           path: dist/
-
-      - name: Publish package on TestPyPI
-        uses: pypa/gh-action-pypi-publish@v1.14.2
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
-          user: __token__
-          password: ${{ secrets.TEST_PYPI_TOKEN }}
-          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true

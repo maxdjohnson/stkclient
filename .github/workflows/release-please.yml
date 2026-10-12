@@ -1,0 +1,47 @@
+name: Prepare releases
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 16 1 1,4,7,10 *"
+  workflow_dispatch:
+    inputs:
+      auto-merge:
+        description: Enable auto-merge for the release PR now (scheduled runs always do)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    if: vars.AUTOMATION_APP_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create repository-scoped automation token
+        id: token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+      - name: Update release PR or tag a merged release
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.token.outputs.token }}
+      - name: Enable quarterly release auto-merge
+        if: steps.release.outputs.pr != '' && (github.event_name == 'schedule' || inputs.auto-merge)
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+        run: gh pr merge "$PR_NUMBER" --auto --squash
