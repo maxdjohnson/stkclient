@@ -184,3 +184,15 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
           fail_ci_if_error: true
+
+  ci-success:
+    name: ci-success
+    if: always()
+    needs: [tests, checks, coverage]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all CI jobs to succeed
+        run: |
+          test "${{ needs.tests.result }}" = "success"
+          test "${{ needs.checks.result }}" = "success"
+          test "${{ needs.coverage.result }}" = "success"
