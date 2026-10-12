@@ -21,13 +21,15 @@ STK_TOKEN_GOOD = "9214b056b98b44238db291b3f2bb786c"  # noqa S105
     [
         (None, "HTTP error"),
         (b'{"error":"unauthorized"}', 'HTTP error {"error": "unauthorized"}'),
-        (b"upstream unavailable", "HTTP error upstream unavailable"),
-        (b"", "HTTP error "),
-        (b"\xff", "HTTP error \ufffd"),
+        (b'"upstream unavailable"', 'HTTP error "upstream unavailable"'),
+        (b"upstream unavailable", 'HTTP error "upstream unavailable"'),
+        (b'upstream "unavailable"\n', r'HTTP error "upstream \"unavailable\"\n"'),
+        (b"", 'HTTP error ""'),
+        (b"\xff", r'HTTP error "\ufffd"'),
     ],
 )
 def test_api_error(body: bytes | None, expected: str) -> None:
-    """Preserve API errors for JSON, non-JSON, and invalid UTF-8 responses."""
+    """JSON-quote string error bodies, including non-JSON and invalid UTF-8 responses."""
     error = api.APIError("HTTP error", body)
     assert str(error) == expected
     assert error.args == (expected,)

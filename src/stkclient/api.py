@@ -33,7 +33,7 @@ class APIError(ValueError):
             try:
                 detail = json.dumps(json.loads(body))
             except (json.JSONDecodeError, UnicodeDecodeError):
-                detail = body.decode("utf-8", errors="replace")
+                detail = json.dumps(body.decode("utf-8", errors="replace"))
             msg += f" {detail}"
         # A default body keeps the message-only args contract pickle-compatible.
         super().__init__(msg)
