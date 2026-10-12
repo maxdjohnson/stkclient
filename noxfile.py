@@ -2,27 +2,15 @@
 
 import os
 import shutil
-import sys
 from pathlib import Path
 from textwrap import dedent
 
 import nox
-
-try:
-    from nox_poetry import Session, session
-except ImportError:
-    message = f"""\
-    Nox failed to import the 'nox-poetry' package.
-
-    Please install it using the following command:
-
-    {sys.executable} -m pip install nox-poetry"""
-    raise SystemExit(dedent(message)) from None
-
+from nox import Session, session
 
 package = "stkclient"
 python_versions = ["3.15", "3.14", "3.13", "3.12", "3.11"]
-nox.options.default_venv_backend = "venv"
+nox.options.default_venv_backend = "uv"
 nox.needs_version = ">= 2026.8.17"
 nox.options.sessions = [
     "pre-commit",
@@ -33,6 +21,26 @@ nox.options.sessions = [
     "xdoctest",
     "docs-build",
 ]
+
+
+def sync(session: Session, group: str) -> None:
+    """Install a dependency group and the package from the shared lockfile.
+
+    Args:
+        session: The Session object.
+        group: The dependency group to install.
+    """
+    session.run_install(
+        "uv",
+        "sync",
+        "--locked",
+        "--no-default-groups",
+        "--group",
+        group,
+        "--no-editable",
+        f"--python={session.virtualenv.location}",
+        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
+    )
 
 
 def activate_virtualenv_in_precommit_hooks(session: Session) -> None:
@@ -85,11 +93,7 @@ def activate_virtualenv_in_precommit_hooks(session: Session) -> None:
 def precommit(session: Session) -> None:
     """Lint using pre-commit."""
     args = session.posargs or ["run", "--all-files", "--show-diff-on-failure"]
-    session.install(
-        "pre-commit",
-        "pre-commit-hooks",
-        "ruff",
-    )
+    sync(session, "lint")
     session.run("pre-commit", *args)
     if args and args[0] == "install":
         activate_virtualenv_in_precommit_hooks(session)
@@ -98,8 +102,19 @@ def precommit(session: Session) -> None:
 @session(python="3.12")
 def audit(session: Session) -> None:
     """Scan dependencies for insecure packages."""
-    requirements = session.poetry.export_requirements()
-    session.install("pip-audit")
+    sync(session, "audit")
+    requirements = Path(session.create_tmp()) / "requirements.txt"
+    session.run(
+        "uv",
+        "export",
+        "--locked",
+        "--all-groups",
+        "--no-emit-project",
+        "--output-file",
+        str(requirements),
+        external=True,
+        silent=True,
+    )
     session.run("pip-audit", "--strict", "--disable-pip", "--no-deps", "-r", str(requirements))
 
 
@@ -107,18 +122,16 @@ def audit(session: Session) -> None:
 def mypy(session: Session) -> None:
     """Type-check using mypy."""
     args = session.posargs or ["src", "tests", "docs/conf.py"]
-    session.install(".")
-    session.install("mypy", "pytest", "pytest-mock")
+    sync(session, "typing")
     session.run("mypy", "--pretty", *args)
     if not session.posargs:
-        session.run("mypy", f"--python-executable={sys.executable}", "noxfile.py")
+        session.run("mypy", "noxfile.py")
 
 
 @session(python=python_versions)
 def tests(session: Session) -> None:
     """Run the test suite."""
-    session.install(".")
-    session.install("coverage[toml]", "pytest", "pytest-mock", "httpretty")
+    sync(session, "test")
     try:
         session.run("coverage", "run", "--parallel", "-m", "pytest", *session.posargs)
     finally:
@@ -126,12 +139,12 @@ def tests(session: Session) -> None:
             session.notify("coverage", posargs=[])
 
 
-@session
+@session(python="3.12")
 def coverage(session: Session) -> None:
     """Produce the coverage report."""
     args = session.posargs or ["report"]
 
-    session.install("coverage[toml]")
+    sync(session, "test")
 
     if not session.posargs and any(Path().glob(".coverage.*")):
         session.run("coverage", "combine")
@@ -142,8 +155,7 @@ def coverage(session: Session) -> None:
 @session(python="3.12")
 def typeguard(session: Session) -> None:
     """Runtime type checking using Typeguard."""
-    session.install(".")
-    session.install("pytest", "pytest-mock", "typeguard", "httpretty")
+    sync(session, "typeguard")
     session.run("pytest", f"--typeguard-packages={package}", *session.posargs)
 
 
@@ -157,15 +169,14 @@ def xdoctest(session: Session) -> None:
         if "FORCE_COLOR" in os.environ:
             args.append("--colored=1")
 
-    session.install(".")
-    session.install("xdoctest[colors]")
+    sync(session, "doctest")
     session.run("python", "-m", "xdoctest", *args)
 
 
 @nox.session(name="docs-build", python="3.12")
 def docs_build(session: nox.Session) -> None:
     """Build HTML, EPUB, and LaTeX using the Read the Docs dependencies."""
-    session.install("-r", "docs/requirements.txt", ".")
+    sync(session, "docs")
 
     build_dir = Path("docs", "_build")
     if build_dir.exists():
@@ -193,7 +204,7 @@ def docs_build(session: nox.Session) -> None:
 def docs(session: nox.Session) -> None:
     """Build and serve the documentation with live reloading on file changes."""
     args = session.posargs or ["--open-browser", "docs", "docs/_build/html"]
-    session.install("-r", "docs/requirements.txt", ".", "sphinx-autobuild")
+    sync(session, "docs-live")
 
     build_dir = Path("docs", "_build")
     if build_dir.exists():

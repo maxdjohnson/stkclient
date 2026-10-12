@@ -49,20 +49,24 @@ jobs:
             ${{ matrix.python }}
             3.12
 
-      - name: Install CI tools
-        run: >-
-          python -m pip install --constraint=.github/workflows/constraints.txt
-          pip poetry poetry-plugin-export nox nox-poetry
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.13.0"
+          enable-cache: true
+          cache-suffix: ${{ matrix.session }}-${{ matrix.python }}
 
       - name: Restore pre-commit cache
         uses: actions/cache@v6
         if: matrix.session == 'pre-commit'
         with:
           path: ~/.cache/pre-commit
-          key: pre-commit-${{ runner.os }}-py3.12-${{ hashFiles('.pre-commit-config.yaml', 'poetry.lock') }}
+          key: pre-commit-${{ runner.os }}-py3.12-${{ hashFiles('.pre-commit-config.yaml', 'uv.lock') }}
 
       - name: Run Nox
-        run: nox --force-color --python=${{ matrix.python }} --error-on-missing-interpreters
+        run: >-
+          uv run --locked --only-group ci nox
+          --force-color --python=${{ matrix.python }} --error-on-missing-interpreters
 
       - name: Upload coverage data
         if: always() && matrix.session == 'tests'
@@ -93,10 +97,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install CI tools
-        run: >-
-          python -m pip install --constraint=.github/workflows/constraints.txt
-          pip poetry poetry-plugin-export nox nox-poetry
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.13.0"
+          enable-cache: true
+          cache-suffix: coverage
 
       - name: Download coverage data
         uses: actions/download-artifact@v8
@@ -105,10 +111,10 @@ jobs:
           merge-multiple: true
 
       - name: Combine coverage data and display human readable report
-        run: nox --force-color --session=coverage
+        run: uv run --locked --only-group ci nox --force-color --session=coverage
 
       - name: Create coverage report
-        run: nox --force-color --session=coverage -- xml
+        run: uv run --locked --only-group ci nox --force-color --session=coverage -- xml
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v7

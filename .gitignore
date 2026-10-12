@@ -3,7 +3,7 @@
 /.coverage
 /.coverage.*
 /.nox/
-/.python-version
+/.venv/
 /.pytype/
 /dist/
 /docs/_build/
