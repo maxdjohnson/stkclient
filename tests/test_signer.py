@@ -13,3 +13,14 @@ def test_signer(device_info: DeviceInfo) -> None:
     signer = Signer.from_device_info(device_info)
     sig = signer.digest_header_for_request("GET", request_path, "", date)
     assert sig == EXPECTED_SIG
+
+
+def test_signer_post_data(device_info: DeviceInfo) -> None:
+    """Preserve the legacy signature for a non-empty UTF-8 request body."""
+    signer = Signer.from_device_info(device_info)
+    # Captured from the python-rsa implementation before migration.
+    expected = "NqES9jLMrb6/yi6zeeQVTZHHbPDbbnTJzA2vXL6xDThpF/qUXlxzCbHfGLJntF+PEW5hkfl3YlvqgOYeYQF4ZxgCOU5NAOOkdAYngSycF5/DGLCdR3kRzG81qIvOjzYHX2pEyXxcBEkloegiTHkOyHQ1XKqcySYhYH+KCey6Nimn3e7zFSRvayw8gupg2VDQkxMBdVSCKpBwH7PRWzMBbBqpWdRD6hO+75kCo+ghtdZsr0Ci71GUxYmFSH8GexykvYQKIAL0LCspAx/g+8Svp/m6v8MdrZv9FRlzeKfH1SSJlfJgqn8J1Dt3O+AoEnzkCs8xWKHPXPkPM/JMejhOvg==:2020-04-10T14:21:40Z"
+    sig = signer.digest_header_for_request(
+        "POST", "/SendToKindle", '{"title": "Café ☕", "author": "作者"}\n', "2020-04-10T14:21:40Z"
+    )
+    assert sig == expected
