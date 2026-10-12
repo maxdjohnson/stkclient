@@ -5,8 +5,8 @@ import datetime
 import hashlib
 from dataclasses import dataclass
 
-import rsa
-from rsa import core, transform
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa, utils
 
 from .model import DeviceInfo
 
@@ -20,13 +20,15 @@ class Signer:
         adp_token: The value to be included in the X-ADP-Authentication-Token header.
     """
 
-    device_private_key: rsa.PrivateKey
+    device_private_key: rsa.RSAPrivateKey
     adp_token: str
 
     @staticmethod
     def from_device_info(d: DeviceInfo) -> "Signer":
         """Constructs a Signer instance from a DeviceInfo object."""
-        k = rsa.PrivateKey.load_pkcs1(d.device_private_key.encode("utf-8"))
+        k = serialization.load_pem_private_key(d.device_private_key.encode("utf-8"), password=None)
+        if not isinstance(k, rsa.RSAPrivateKey):
+            raise ValueError("Device private key must be an RSA private key")
         return Signer(
             device_private_key=k,
             adp_token=d.adp_token,
@@ -50,14 +52,11 @@ class Signer:
             signing_date = _get_signing_date()
         sig_data = self._make_digest_data_for_request(method, path, post_data, signing_date)
         digest = _sha256(sig_data)
-        pad = bytes.fromhex(
-            "01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
-        )
-        padded = pad + digest
-        payload = transform.bytes2int(padded)
-        encrypted = core.encrypt_int(payload, self.device_private_key.d, self.device_private_key.n)
-        encrypted_bytes = transform.int2bytes(encrypted, 256)
-        bytes64 = base64.b64encode(encrypted_bytes).decode("utf-8")
+        # Amazon ADP signs the raw SHA-256 digest with PKCS#1 v1.5 block padding,
+        # without the ASN.1 DigestInfo wrapper. SHA256() or Prehashed(SHA256())
+        # would include that wrapper and break Amazon's signature format.
+        signature = self.device_private_key.sign(digest, padding.PKCS1v15(), utils.NoDigestInfo())
+        bytes64 = base64.b64encode(signature).decode("utf-8")
         return f"{bytes64}:{signing_date}"
 
     def _make_digest_data_for_request(

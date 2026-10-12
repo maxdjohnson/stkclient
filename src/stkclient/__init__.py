@@ -21,7 +21,8 @@ class Client:
     """Supports listing devices and sending files to specific devices."""
 
     _device_info: model.DeviceInfo
-    _signer: signer.Signer = dataclasses.field(init=False, repr=False)
+    # The signer is derived from device_info; cryptography keys compare by identity.
+    _signer: signer.Signer = dataclasses.field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """Initialize _signer."""
