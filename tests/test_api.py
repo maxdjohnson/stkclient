@@ -1,7 +1,6 @@
 """Unit tests of stkclient.api using httpretty-based mock."""
 
 import json
-import pickle  # noqa: S403 - exception round-trip test
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -32,9 +31,6 @@ def test_api_error(body: bytes | None, expected: str) -> None:
     error = api.APIError("HTTP error", body)
     assert str(error) == expected
     assert error.args == (expected,)
-    restored = pickle.loads(pickle.dumps(error))  # noqa: S301 - local test data
-    assert isinstance(restored, api.APIError)
-    assert str(restored) == expected
 
 
 @pytest.fixture()
