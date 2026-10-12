@@ -172,38 +172,29 @@ def xdoctest(session: Session) -> None:
     session.run("python", "-m", "xdoctest", *args)
 
 
-@nox.session(name="docs-build", python="3.12")
-def docs_build(session: nox.Session) -> None:
-    """Build HTML, EPUB, and LaTeX using the Read the Docs dependencies."""
-    session.install("-r", "docs/requirements.txt", ".")
+@session(name="docs-build", python="3.12")
+def docs_build(session: Session) -> None:
+    """Build the documentation."""
+    args = session.posargs or ["-W", "--keep-going", "docs", "docs/_build"]
+    if not session.posargs and "FORCE_COLOR" in os.environ:
+        args.insert(0, "--color")
+
+    session.install(".")
+    session.install("sphinx", "sphinx-argparse", "furo")
 
     build_dir = Path("docs", "_build")
     if build_dir.exists():
         shutil.rmtree(build_dir)
 
-    if session.posargs:
-        session.run("sphinx-build", *session.posargs)
-        return
-
-    for builder in ("html", "epub", "latex"):
-        args = ["-W", "--keep-going", "-b", builder]
-        if "FORCE_COLOR" in os.environ:
-            args.insert(0, "--color")
-        session.run(
-            "sphinx-build",
-            *args,
-            "-d",
-            str(build_dir / "doctrees" / builder),
-            "docs",
-            str(build_dir / builder),
-        )
+    session.run("sphinx-build", *args)
 
 
-@nox.session(python="3.12")
-def docs(session: nox.Session) -> None:
+@session(python="3.12")
+def docs(session: Session) -> None:
     """Build and serve the documentation with live reloading on file changes."""
-    args = session.posargs or ["--open-browser", "docs", "docs/_build/html"]
-    session.install("-r", "docs/requirements.txt", ".", "sphinx-autobuild")
+    args = session.posargs or ["--open-browser", "docs", "docs/_build"]
+    session.install(".")
+    session.install("sphinx", "sphinx-argparse", "sphinx-autobuild", "furo")
 
     build_dir = Path("docs", "_build")
     if build_dir.exists():

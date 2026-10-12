@@ -17,8 +17,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    outputs:
-      tag: ${{ steps.check-version.outputs.tag }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
@@ -61,19 +59,20 @@ jobs:
           poetry check --lock --strict
           poetry build --ansi
 
-      - name: Upload distributions
-        uses: actions/upload-artifact@v7
-        with:
-          name: dist
-          path: dist/
-          if-no-files-found: error
-
       - name: Publish package on PyPI
         if: steps.check-version.outputs.tag
         uses: pypa/gh-action-pypi-publish@v1.14.2
         with:
           user: __token__
           password: ${{ secrets.PYPI_TOKEN }}
+
+      - name: Publish package on TestPyPI
+        if: github.event_name == 'push' && !steps.check-version.outputs.tag
+        uses: pypa/gh-action-pypi-publish@v1.14.2
+        with:
+          user: __token__
+          password: ${{ secrets.TEST_PYPI_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
 
       - name: Publish the release notes
         if: github.event_name == 'push'
@@ -83,22 +82,3 @@ jobs:
           tag: ${{ steps.check-version.outputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  testpypi:
-    name: Publish development package on TestPyPI
-    needs: release
-    if: github.event_name == 'push' && !needs.release.outputs.tag
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download distributions
-        uses: actions/download-artifact@v8
-        with:
-          name: dist
-          path: dist/
-
-      - name: Publish package on TestPyPI
-        uses: pypa/gh-action-pypi-publish@v1.14.2
-        with:
-          user: __token__
-          password: ${{ secrets.TEST_PYPI_TOKEN }}
-          repository-url: https://test.pypi.org/legacy/
