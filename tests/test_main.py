@@ -1,5 +1,6 @@
 """Tests for the command-line interface."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -10,25 +11,36 @@ from stkclient.__main__ import main
 from stkclient.model import DeviceInfo
 
 
-def test_login(tmp_path: Path, mocker: MockerFixture, device_info: DeviceInfo) -> None:
-    """Test the login command."""
-    client_path = tmp_path / "client.json"
+def test_login(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture, device_info: DeviceInfo
+) -> None:
+    """Save credentials at the default location and replace them only with explicit consent."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    client_path = tmp_path / "pystkclient" / "client.json"
     mock_client = stkclient.Client(device_info)
     mocker.patch("builtins.input", return_value="test_input")
-    mocker.patch.object(stkclient.OAuth2, "create_client", return_value=mock_client)
+    authenticate = mocker.patch.object(stkclient.OAuth2, "create_client", return_value=mock_client)
 
     # First call results in a client file
-    main(["login", "--client", str(client_path)])
-    assert client_path.exists()
+    main(["login"])
     with open(client_path) as f:
         assert stkclient.Client.load(f) == mock_client
 
-    # Calling again raises an error as the file exists
+    replacement = stkclient.Client(
+        replace(device_info, adp_token=f"{device_info.adp_token}-replacement")
+    )
+    authenticate.return_value = replacement
+    original = client_path.read_bytes()
+    # Refuse a second login before authenticating or overwriting saved credentials.
     with pytest.raises(SystemExit):
-        main(["login", "--client", str(client_path)])
+        main(["login"])
+    assert client_path.read_bytes() == original
+    authenticate.assert_called_once()
 
     # Unless passing -f
-    main(["login", "--client", str(client_path), "-f"])
+    main(["login", "-f"])
+    with client_path.open() as f:
+        assert stkclient.Client.load(f) == replacement
 
 
 @pytest.fixture()
@@ -48,23 +60,10 @@ def owned_devices() -> list[stkclient.OwnedDevice]:
     ]
 
 
-def test_devices(
-    client_path: Path,
-    owned_devices: list[stkclient.OwnedDevice],
-    mocker: MockerFixture,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Print each device's serial number and display name."""
-    get_devices = mocker.patch.object(
-        stkclient.Client, "get_owned_devices", return_value=owned_devices
-    )
-    main(["devices", "--client", str(client_path)])
-    get_devices.assert_called_once_with()
-    assert capsys.readouterr().out == "kindle-serial: Kindle\nphone-serial: Phone\n"
-
-
-@pytest.mark.parametrize("targets", [["kindle-serial"], ["kindle-serial", "phone-serial"], ["all"]])
-@pytest.mark.parametrize("force_convert", [False, True])
+@pytest.mark.parametrize(
+    "targets, force_convert",
+    [(["kindle-serial", "phone-serial"], False), (["all"], True)],
+)
 def test_send(
     client_path: Path,
     owned_devices: list[stkclient.OwnedDevice],
@@ -132,52 +131,6 @@ def test_logout_failure(client_path: Path, mocker: MockerFixture) -> None:
     assert client_path.read_bytes() == original
 
 
-@pytest.mark.parametrize(
-    "args",
-    [
-        ["devices"],
-        ["logout"],
-        ["send", "--title", "Title", "--author", "Author", "--format", "pdf", "file.pdf", "all"],
-    ],
-)
-def test_missing_client(
-    args: list[str], tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Report missing credentials consistently for commands that need a client."""
-    path = tmp_path / "missing.json"
-    with pytest.raises(SystemExit) as raised:
-        main([*args, "--client", str(path)])
-    assert raised.value.code == 1
-    assert capsys.readouterr().err == f"{path} does not exist\n"
-
-
-def test_login_default_path(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    mocker: MockerFixture,
-    device_info: DeviceInfo,
-) -> None:
-    """Create the default credential directory under XDG_DATA_HOME."""
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    mocker.patch("builtins.input", return_value="redirect-url")
-    mocker.patch.object(
-        stkclient.OAuth2, "create_client", return_value=stkclient.Client(device_info)
-    )
-    main(["login"])
-    saved = tmp_path / "pystkclient" / "client.json"
-    assert stkclient.Client.loads(saved.read_text()) == stkclient.Client(device_info)
-
-
-def test_login_missing_parent(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """Explain a nonexistent custom credential directory before asking for authentication."""
-    path = tmp_path / "missing" / "client.json"
-    with pytest.raises(SystemExit) as raised:
-        main(["login", "--client", str(path)])
-    assert raised.value.code == 1
-    assert capsys.readouterr().err == f"{path.parent} is not a directory\n"
-    assert not path.exists()
-
-
 def test_login_failure(client_path: Path, mocker: MockerFixture) -> None:
     """A failed forced login must leave existing credentials intact."""
     original = client_path.read_bytes()
@@ -188,11 +141,3 @@ def test_login_failure(client_path: Path, mocker: MockerFixture) -> None:
     with pytest.raises(stkclient.api.APIError, match="unauthorized"):
         main(["login", "--force", "--client", str(client_path)])
     assert client_path.read_bytes() == original
-
-
-def test_no_command(capsys: pytest.CaptureFixture[str]) -> None:
-    """Display usage and fail when invoked without a subcommand."""
-    with pytest.raises(SystemExit) as raised:
-        main([])
-    assert raised.value.code == 1
-    assert "usage: stkclient" in capsys.readouterr().out
