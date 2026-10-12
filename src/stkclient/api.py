@@ -2,6 +2,7 @@
 
 import http.client
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -137,13 +138,15 @@ def get_list_of_owned_devices(signer: Signer) -> GetOwnedDevicesResponse:
         APIError: The HTTP request failed.
     """
     try:
-        return GetOwnedDevicesResponse.from_dict(_request("/GetListOfOwnedDevices", signer, {}))
+        return GetOwnedDevicesResponse.from_dict(
+            _request("/import/kindle-doc/get-device-list", signer, {})
+        )
     except urllib.error.HTTPError as e:
         raise APIError(str(e), _text(e)) from e
 
 
 def get_upload_url(signer: Signer, file_size: int) -> GetUploadUrlResponse:
-    """Gets a URL where the client can send the file contents via HTTP POST request.
+    """Gets a URL where the client can send the file contents via HTTP PUT request.
 
     Args:
         signer: Signer instance to authenticate the client.
@@ -157,7 +160,7 @@ def get_upload_url(signer: Signer, file_size: int) -> GetUploadUrlResponse:
     """
     try:
         return GetUploadUrlResponse.from_dict(
-            _request("/GetUploadUrl", signer, {"fileSize": file_size})
+            _request("/import/upload-url", signer, {"fileSize": file_size})
         )
     except urllib.error.HTTPError as e:
         raise APIError(str(e), _text(e)) from e
@@ -209,6 +212,7 @@ def send_to_kindle(
     author: str,
     title: str,
     format: str,
+    file_size: int,
     force_convert: bool = False,
 ) -> SendToKindleResponse:
     """Send an uploaded file to the specified kindle devices.
@@ -220,6 +224,7 @@ def send_to_kindle(
         author: The author of the document.
         title: The title of the document.
         format: The input format of the document.
+        file_size: Size in bytes of the uploaded file.
         force_convert: Convert PDFs to Kindle format instead of preserving their layout.
             Other input formats are always converted to Kindle format.
 
@@ -230,20 +235,24 @@ def send_to_kindle(
         APIError: The HTTP request failed.
     """
     body = {
-        "DocumentMetadata": {
+        "documentMetadata": {
             "author": author,
             "crc32": 0,
             "inputFormat": format,
             "title": title,
         },
         "archive": True,
-        "deliveryMechanism": "WIFI",
-        "outputFormat": "PDF" if format.lower() == "pdf" and not force_convert else "MOBI",
+        "fileSize": file_size,
+        "forceConvert": force_convert,
+        "sendTimeMillis": time.time_ns() // 1_000_000,
+        "shouldExtractWebContent": False,
         "stkToken": stk_token,
         "targetDevices": target_device_serial_numbers,
     }
     try:
-        return SendToKindleResponse.from_dict(_request("/SendToKindle", signer, body))
+        return SendToKindleResponse.from_dict(
+            _request("/import/kindle-doc/send-to-kindle", signer, body)
+        )
     except urllib.error.HTTPError as e:
         raise APIError(str(e), _text(e)) from e
 
@@ -279,13 +288,13 @@ def logout(signer: Signer) -> None:
 def _request(path: str, signer: Signer, body: Mapping[str, Any]) -> Mapping[str, Any]:
     data = json.dumps(
         {
-            "ClientInfo": DEFAULT_CLIENT_INFO,
+            "clientInfo": DEFAULT_CLIENT_INFO,
             **body,
         },
         indent=4,
     )
     req = urllib.request.Request(
-        url="https://stkservice.amazon.com" + path,
+        url="https://kd.amazon.com" + path,
         data=data.encode("utf-8"),
         headers={
             "Accept": "application/json",

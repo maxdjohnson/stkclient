@@ -99,6 +99,15 @@ original page layout by default. To convert a PDF to Kindle format, set
        format="pdf", force_convert=True,
    )
 
+The client uses Amazon's Kindle Docs API at ``kd.amazon.com`` for device listing,
+upload URLs, and delivery. ``force_convert`` is sent directly as ``forceConvert``.
+The ``Client`` and command-line interfaces are unchanged by this migration.
+
+If you call the low-level ``stkclient.api.send_to_kindle`` function directly, you
+must now pass ``file_size`` (the uploaded file's size in bytes). ``Client.send_file``
+calculates and supplies this automatically. The existing authentication flow and
+saved client format are unchanged.
+
 
 Development
 -----------
