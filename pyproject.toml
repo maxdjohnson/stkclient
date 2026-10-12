@@ -7,7 +7,15 @@ license = "MIT"
 license-files = ["LICENSE.rst"]
 readme = "README.rst"
 requires-python = ">=3.11,<4.0"
-dynamic = ["classifiers"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+]
 dependencies = [
     "defusedxml>=0.7.1,<0.8.0",
     "rsa>=4.9.1,<5.0.0",
@@ -22,40 +30,73 @@ Changelog = "https://github.com/maxdjohnson/stkclient/releases"
 [project.scripts]
 stkclient = "stkclient.__main__:main"
 
-[tool.poetry]
-classifiers = [
-    "Development Status :: 4 - Beta",
+[dependency-groups]
+dev = [
+    {include-group = "audit"},
+    {include-group = "ci"},
+    {include-group = "docs-live"},
+    {include-group = "doctest"},
+    {include-group = "lint"},
+    {include-group = "typeguard"},
+    {include-group = "typing"},
+]
+test = [
+    "pytest>=9.1.1,<10",
+    "coverage[toml]>=7.16.2,<8",
+    "pytest-mock>=3.16,<4",
+    "httpretty>=1.1.4,<2",
+]
+audit = ["pip-audit>=2.10.1,<3"]
+ci = ["nox>=2026.8.17"]
+docs = [
+    "sphinx>=9.1,<10",
+    "furo>=2025.12.19,<2026",
+    "sphinx-argparse>=0.6.1,<0.7",
+]
+docs-live = [
+    {include-group = "docs"},
+    "sphinx-autobuild>=2025.8.25,<2026",
+]
+doctest = ["xdoctest[colors]>=1.3.2,<2"]
+lint = [
+    "pre-commit>=4.6.2,<5",
+    "flake8>=7.4.1,<8",
+    "black>=26.10.1,<27",
+    "flake8-bandit>=4.1.1,<5",
+    "flake8-bugbear>=26.9.30,<27",
+    "flake8-docstrings>=1.7,<2",
+    "flake8-rst-docstrings>=0.4,<0.5",
+    "pep8-naming>=0.15.1,<0.16",
+    "darglint>=1.8.1,<2",
+    "pre-commit-hooks>=6.0,<7",
+    "pyupgrade>=3.22,<4",
+    "flake8-isort>=7.0,<8",
+    "isort>=9.0.2,<10",
+]
+typeguard = [
+    {include-group = "test"},
+    "typeguard>=4.6,<5",
+]
+typing = [
+    {include-group = "ci"},
+    {include-group = "test"},
+    "mypy>=2.4,<3",
 ]
 
-[tool.poetry.group.test.dependencies]
-pytest = "^9.1.1"
-coverage = {extras = ["toml"], version = "^7.16.2"}
-pytest-mock = "^3.16"
-httpretty = "^1.1.4"
+[tool.uv]
+required-version = ">=0.13.0"
 
 # Run maintenance tools on Python 3.12 independently of the package's runtime floor.
-[tool.poetry.group.dev.dependencies]
-pip-audit = {version = "^2.10.1", python = ">=3.12"}
-mypy = {version = "^2.4", python = ">=3.12"}
-typeguard = {version = "^4.6", python = ">=3.12"}
-xdoctest = {extras = ["colors"], version = "^1.3.2", python = ">=3.12"}
-sphinx = {version = "^9.1", python = ">=3.12"}
-sphinx-autobuild = {version = "^2025.8.25", python = ">=3.12"}
-pre-commit = {version = "^4.6.2", python = ">=3.12"}
-flake8 = {version = "^7.4.1", python = ">=3.12"}
-black = {version = "^26.10.1", python = ">=3.12"}
-flake8-bandit = {version = "^4.1.1", python = ">=3.12"}
-flake8-bugbear = {version = "^26.9.30", python = ">=3.12"}
-flake8-docstrings = {version = "^1.7", python = ">=3.12"}
-flake8-rst-docstrings = {version = "^0.4", python = ">=3.12"}
-pep8-naming = {version = "^0.15.1", python = ">=3.12"}
-darglint = {version = "^1.8.1", python = ">=3.12"}
-pre-commit-hooks = {version = "^6.0", python = ">=3.12"}
-pyupgrade = {version = "^3.22", python = ">=3.12"}
-furo = {version = "^2025.12.19", python = ">=3.12"}
-flake8-isort = {version = "^7.0", python = ">=3.12"}
-isort = {version = "^9.0.2", python = ">=3.12"}
-sphinx-argparse = {version = "^0.6.1", python = ">=3.12"}
+[tool.uv.dependency-groups]
+dev = {requires-python = ">=3.12"}
+audit = {requires-python = ">=3.12"}
+ci = {requires-python = ">=3.12"}
+docs = {requires-python = ">=3.12"}
+docs-live = {requires-python = ">=3.12"}
+doctest = {requires-python = ">=3.12"}
+lint = {requires-python = ">=3.12"}
+typeguard = {requires-python = ">=3.12"}
+typing = {requires-python = ">=3.12"}
 
 [tool.coverage.paths]
 source = ["src", "*/site-packages"]
@@ -75,8 +116,8 @@ warn_unreachable = true
 mypy_path = "$MYPY_CONFIG_FILE_DIR/stubs"
 
 [build-system]
-requires = ["poetry-core>=2.2,<3.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.13.0,<0.14"]
+build-backend = "uv_build"
 
 [tool.black]
 line-length = 100

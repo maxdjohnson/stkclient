@@ -103,12 +103,34 @@ original page layout by default. To convert a PDF to Kindle format, set
 Development
 -----------
 
-Install the CI tools with Python 3.12, then run the same Nox sessions as CI:
+Install uv_ 0.13.0 or later, then create the development environment and run the same
+Nox sessions as CI. The checked-in ``.python-version`` selects Python 3.12;
+uv downloads it automatically if needed.
 
 .. code:: console
 
-   $ python3.12 -m pip install -c .github/workflows/constraints.txt poetry poetry-plugin-export nox nox-poetry
-   $ nox -s tests-3.12 mypy typeguard xdoctest docs-build pre-commit audit
+   $ uv sync --locked
+   $ uv run --locked nox -s tests-3.12 mypy typeguard xdoctest docs-build pre-commit audit
+
+For a quick test run, use ``uv run --locked pytest``. To run the full Python
+matrix locally, install its interpreters and run the test sessions:
+
+.. code:: console
+
+   $ uv python install 3.11 3.12 3.13 3.14 3.15
+   $ uv run --locked nox -s tests --error-on-missing-interpreters
+
+Dependencies live in ``pyproject.toml`` and their resolved versions in
+``uv.lock``. Commit both files when dependencies change. Use ``uv add`` for
+runtime dependencies, ``uv add --group test`` for test dependencies, and
+``uv lock --upgrade-package NAME`` for targeted updates. Purpose-specific
+groups keep Nox environments small; the default ``dev`` group includes all
+development tools. For example, ``uv sync --locked --no-default-groups --group
+test --python 3.11`` installs only the package and test tools on Python 3.11.
+
+Build distributions with ``uv build --no-sources``. Update the package version
+with ``uv version --bump patch`` (or ``minor`` / ``major``), committing the
+updated ``pyproject.toml`` and ``uv.lock`` together.
 
 CI tests Python 3.11 through 3.15 and runs the newest version on Linux, macOS,
 and Windows. The minimum Python version follows the `Python support schedule`_.
@@ -118,6 +140,7 @@ The documentation build treats warnings as errors. Pull requests also build the
 release distributions; publishing remains limited to pushes to the main branch.
 
 .. _Python support schedule: https://devguide.python.org/versions/
+.. _uv: https://docs.astral.sh/uv/getting-started/installation/
 
 
 Related Projects
@@ -132,14 +155,6 @@ License
 Distributed under the terms of the `MIT license`_,
 *Send To Kindle* is free and open source software.
 
-
-Credits
--------
-
-Project structure from `@cjolowicz`_'s `Hypermodern Python Cookiecutter`_ template.
-
-.. _@cjolowicz: https://github.com/cjolowicz
 .. _MIT license: https://opensource.org/licenses/MIT
 .. _PyPI: https://pypi.org/
-.. _Hypermodern Python Cookiecutter: https://github.com/cjolowicz/cookiecutter-hypermodern-python
 .. _pip: https://pip.pypa.io/
