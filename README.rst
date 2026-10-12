@@ -110,6 +110,10 @@ Install the CI tools with Python 3.12, then run the same Nox sessions as CI:
    $ python3.12 -m pip install -c .github/workflows/constraints.txt poetry poetry-plugin-export nox nox-poetry
    $ nox -s tests-3.12 mypy typeguard xdoctest docs-build pre-commit audit
 
+The ``pre-commit`` session runs Ruff for Python linting, import sorting, syntax
+upgrades, and formatting. Its configuration lives in ``pyproject.toml`` and checks
+for unused or invalid ``noqa`` comments.
+
 CI tests Python 3.11 through 3.15 and runs the newest version on Linux, macOS,
 and Windows. The minimum Python version follows the `Python support schedule`_.
 Maintenance tools run on Python 3.12. The ``audit`` session checks locked runtime,
