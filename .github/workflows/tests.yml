@@ -13,63 +13,44 @@ concurrency:
 
 jobs:
   tests:
-    name: ${{ matrix.session }} ${{ matrix.python }} / ${{ matrix.os }}
+    name: tests ${{ matrix.python }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        python: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+        os: [ubuntu-latest]
         include:
-          - { python: "3.12", os: "ubuntu-latest", session: "pre-commit" }
-          - { python: "3.12", os: "ubuntu-latest", session: "audit" }
-          - { python: "3.12", os: "ubuntu-latest", session: "mypy" }
-          - { python: "3.15", os: "ubuntu-latest", session: "tests" }
-          - { python: "3.14", os: "ubuntu-latest", session: "tests" }
-          - { python: "3.13", os: "ubuntu-latest", session: "tests" }
-          - { python: "3.12", os: "ubuntu-latest", session: "tests" }
-          - { python: "3.11", os: "ubuntu-latest", session: "tests" }
-          - { python: "3.15", os: "windows-latest", session: "tests" }
-          - { python: "3.15", os: "macos-latest", session: "tests" }
-          - { python: "3.12", os: "ubuntu-latest", session: "typeguard" }
-          - { python: "3.12", os: "ubuntu-latest", session: "xdoctest" }
-          - { python: "3.12", os: "ubuntu-latest", session: "docs-build" }
+          - { python: "3.15", os: "windows-latest" }
+          - { python: "3.15", os: "macos-latest" }
 
     env:
-      NOXSESSION: ${{ matrix.session }}
+      UV_PYTHON: ${{ matrix.python }}
       FORCE_COLOR: "1"
-      PRE_COMMIT_COLOR: "always"
 
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
 
-      - name: Set up test and tooling interpreters
+      - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: |
-            ${{ matrix.python }}
-            3.12
+          python-version: ${{ matrix.python }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.13.0"
           enable-cache: true
-          cache-suffix: ${{ matrix.session }}-${{ matrix.python }}
+          cache-suffix: tests-${{ matrix.python }}
 
-      - name: Restore pre-commit cache
-        uses: actions/cache@v6
-        if: matrix.session == 'pre-commit'
-        with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ runner.os }}-py3.12-${{ hashFiles('.pre-commit-config.yaml', 'uv.lock') }}
-
-      - name: Run Nox
+      - name: Run tests
         run: >-
-          uv run --locked --only-group ci nox
-          --force-color --python=${{ matrix.python }} --error-on-missing-interpreters
+          uv run --locked --no-default-groups --group test --no-editable
+          coverage run --parallel-mode -m pytest
 
       - name: Upload coverage data
-        if: always() && matrix.session == 'tests'
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: coverage-data-${{ matrix.os }}-${{ matrix.python }}
@@ -77,8 +58,84 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+  checks:
+    name: ${{ matrix.check }} 3.12 / ubuntu-latest
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { check: "pre-commit", group: "lint" }
+          - { check: "audit", group: "audit" }
+          - { check: "mypy", group: "typing" }
+          - { check: "typeguard", group: "typeguard" }
+          - { check: "xdoctest", group: "doctest" }
+          - { check: "docs-build", group: "docs" }
+
+    env:
+      UV_PYTHON: "3.12"
+      FORCE_COLOR: "1"
+      PRE_COMMIT_COLOR: "always"
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.13.0"
+          enable-cache: true
+          cache-suffix: ${{ matrix.check }}-3.12
+
+      - name: Restore pre-commit cache
+        uses: actions/cache@v6
+        if: matrix.check == 'pre-commit'
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-py3.12-${{ hashFiles('.pre-commit-config.yaml', 'uv.lock') }}
+
+      - name: Install check dependencies
+        run: >-
+          uv sync --locked --no-default-groups --group ${{ matrix.group }} --no-editable
+
+      - name: Run pre-commit
+        if: matrix.check == 'pre-commit'
+        run: uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+
+      - name: Audit locked dependencies
+        if: matrix.check == 'audit'
+        run: |
+          uv export --locked --all-groups --no-emit-project --output-file "$RUNNER_TEMP/requirements.txt" > /dev/null
+          uv run --no-sync pip-audit --strict --disable-pip --no-deps -r "$RUNNER_TEMP/requirements.txt"
+
+      - name: Check types
+        if: matrix.check == 'mypy'
+        run: uv run --no-sync mypy --pretty src tests docs/conf.py
+
+      - name: Check runtime types
+        if: matrix.check == 'typeguard'
+        run: uv run --no-sync pytest --typeguard-packages=stkclient
+
+      - name: Run examples
+        if: matrix.check == 'xdoctest'
+        run: uv run --no-sync python -m xdoctest --modname=stkclient --command=all --colored=1
+
+      - name: Build documentation
+        if: matrix.check == 'docs-build'
+        run: |
+          for builder in html epub latex; do
+            uv run --no-sync sphinx-build --color -W --keep-going -b "$builder" \
+              -d "docs/_build/doctrees/$builder" docs "docs/_build/$builder"
+          done
+
       - name: Upload documentation
-        if: matrix.session == 'docs-build'
+        if: matrix.check == 'docs-build'
         uses: actions/upload-artifact@v7
         with:
           name: docs
@@ -88,6 +145,8 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     needs: tests
+    env:
+      UV_PYTHON: "3.12"
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
@@ -110,11 +169,14 @@ jobs:
           pattern: coverage-data-*
           merge-multiple: true
 
-      - name: Combine coverage data and display human readable report
-        run: uv run --locked --only-group ci nox --force-color --session=coverage
+      - name: Install coverage dependencies
+        run: uv sync --locked --no-default-groups --group test --no-editable
 
-      - name: Create coverage report
-        run: uv run --locked --only-group ci nox --force-color --session=coverage -- xml
+      - name: Combine coverage data and create reports
+        run: |
+          uv run --no-sync coverage combine
+          uv run --no-sync coverage report
+          uv run --no-sync coverage xml
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v7
@@ -122,3 +184,15 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
           fail_ci_if_error: true
+
+  ci-success:
+    name: ci-success
+    if: always()
+    needs: [tests, checks, coverage]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all CI jobs to succeed
+        run: |
+          test "${{ needs.tests.result }}" = "success"
+          test "${{ needs.checks.result }}" = "success"
+          test "${{ needs.coverage.result }}" = "success"
