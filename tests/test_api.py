@@ -12,8 +12,8 @@ import pytest
 from stkclient import api, model
 from stkclient.signer import Signer
 
-ADP_TOKEN_GOOD = "adp_token_good"  # noqa S105
-STK_TOKEN_GOOD = "9214b056b98b44238db291b3f2bb786c"  # noqa S105
+ADP_TOKEN_GOOD = "adp_token_good"
+STK_TOKEN_GOOD = "9214b056b98b44238db291b3f2bb786c"
 
 
 @pytest.mark.parametrize(
