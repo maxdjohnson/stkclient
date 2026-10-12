@@ -116,6 +116,12 @@ release distributions; publishing remains limited to pushes to the main branch.
 .. _Python support schedule: https://devguide.python.org/versions/
 
 
+Related Projects
+----------------
+
+`KindBeamer <https://github.com/jooray/kindbeamer>`__ a GUI application implementing the same protocol.
+
+
 License
 -------
 
