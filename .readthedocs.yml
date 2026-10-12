@@ -5,6 +5,7 @@ build:
     python: "3.12"
 sphinx:
   configuration: docs/conf.py
+  fail_on_warning: true
 formats: all
 python:
   install:

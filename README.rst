@@ -1,6 +1,8 @@
 Send To Kindle
 ==============
 
+.. badges-start
+
 |PyPI| |Status| |Python Version| |License|
 
 |Read the Docs| |Tests| |Codecov|
@@ -26,6 +28,8 @@ Send To Kindle
 .. |Codecov| image:: https://codecov.io/gh/maxdjohnson/stkclient/branch/main/graph/badge.svg
    :target: https://codecov.io/gh/maxdjohnson/stkclient
    :alt: Codecov
+
+.. badges-end
 
 
 ``stkclient`` implements a client for amazon's "Send to Kindle" service. It allows python programs to
