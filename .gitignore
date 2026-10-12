@@ -2,7 +2,6 @@
 .ruff_cache/
 /.coverage
 /.coverage.*
-/.nox/
 /.venv/
 /.pytype/
 /dist/
