@@ -8,12 +8,14 @@ from unittest.mock import Mock
 
 import httpretty
 import pytest
+from pytest_mock import MockerFixture
 
 from stkclient import api, model
 from stkclient.signer import Signer
 
 ADP_TOKEN_GOOD = "adp_token_good"
 STK_TOKEN_GOOD = "9214b056b98b44238db291b3f2bb786c"
+UPLOAD_URL = "https://zme-caps.amazon.com/asset/test/IMPORT_SOURCE?urlMethod=PUT&sig=test_signature"
 
 
 @pytest.mark.parametrize(
@@ -163,7 +165,7 @@ def test_get_list_of_owned_devices_good(signer: Mock) -> None:
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
     ) -> tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
-            "Host": "stkservice.amazon.com",
+            "Host": "kd.amazon.com",
             "Accept": "application/json",
             "Content-Type": "application/json",
             "X-Adp-Request-Digest": "test_signature",
@@ -175,10 +177,11 @@ def test_get_list_of_owned_devices_good(signer: Mock) -> None:
             "User-Agent": "Mozilla/5.0",
         }
         body = json.loads(request.body)
-        assert body == {"ClientInfo": api.DEFAULT_CLIENT_INFO}
+        assert body == {"clientInfo": api.DEFAULT_CLIENT_INFO}
         res = {
             "ownedDevices": [
                 {
+                    "accountId": "test_account_id",
                     "deviceCapabilities": {
                         "PDF_CONTENT_ENABLED": True,
                         "WAN_ENABLED": False,
@@ -202,11 +205,15 @@ def test_get_list_of_owned_devices_good(signer: Mock) -> None:
         return 200, response_headers, json.dumps(res)
 
     httpretty.register_uri(
-        httpretty.POST, "https://stkservice.amazon.com/GetListOfOwnedDevices", body=request_callback
+        httpretty.POST,
+        "https://kd.amazon.com/import/kindle-doc/get-device-list",
+        body=request_callback,
     )
     res = api.get_list_of_owned_devices(signer)
-    data = json.dumps({"ClientInfo": api.DEFAULT_CLIENT_INFO}, indent=4)
-    signer.digest_header_for_request.assert_called_with("POST", "/GetListOfOwnedDevices", data)
+    data = json.dumps({"clientInfo": api.DEFAULT_CLIENT_INFO}, indent=4)
+    signer.digest_header_for_request.assert_called_with(
+        "POST", "/import/kindle-doc/get-device-list", data
+    )
     assert res == model.GetOwnedDevicesResponse(
         owned_devices=[
             model.OwnedDevice(
@@ -239,7 +246,7 @@ def test_get_upload_url_good(signer: Mock) -> None:
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
     ) -> tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
-            "Host": "stkservice.amazon.com",
+            "Host": "kd.amazon.com",
             "Accept": "application/json",
             "Content-Type": "application/json",
             "X-Adp-Request-Digest": "test_signature",
@@ -251,32 +258,32 @@ def test_get_upload_url_good(signer: Mock) -> None:
             "User-Agent": "Mozilla/5.0",
         }
         body = json.loads(request.body)
-        assert body == {"ClientInfo": api.DEFAULT_CLIENT_INFO, "fileSize": 100}
+        assert body == {"clientInfo": api.DEFAULT_CLIENT_INFO, "fileSize": 100}
         res = {
             "expiryTime": 3600000,
             "statusCode": 0,
             "stkToken": STK_TOKEN_GOOD,
-            "uploadUrl": "https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D",
+            "uploadUrl": UPLOAD_URL,
         }
         return 200, response_headers, json.dumps(res)
 
     httpretty.register_uri(
-        httpretty.POST, "https://stkservice.amazon.com/GetUploadUrl", body=request_callback
+        httpretty.POST, "https://kd.amazon.com/import/upload-url", body=request_callback
     )
     res = api.get_upload_url(signer, 100)
-    data = json.dumps({"ClientInfo": api.DEFAULT_CLIENT_INFO, "fileSize": 100}, indent=4)
-    signer.digest_header_for_request.assert_called_with("POST", "/GetUploadUrl", data)
+    data = json.dumps({"clientInfo": api.DEFAULT_CLIENT_INFO, "fileSize": 100}, indent=4)
+    signer.digest_header_for_request.assert_called_with("POST", "/import/upload-url", data)
     assert res == model.GetUploadUrlResponse(
         expiry_time=3600000,
         status_code=0,
         stk_token=STK_TOKEN_GOOD,
-        upload_url="https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D",
+        upload_url=UPLOAD_URL,
     )
 
 
 def test_upload_file_good(tmp_path: Path) -> None:
     """Check that upload_file returns the expected result."""
-    url = "https://send-to-kindle-prod.s3.amazonaws.com/RpaDKq?AWSAccessKeyId=AKIAQ5DT6R2IZ7ECREWD&Expires=1633759364&Signature=0Eevh%2B9ew8piKe%2BsgkeegTdTWzM%3D"
+    url = UPLOAD_URL
     file_path = tmp_path / "test.txt"
     with open(file_path, "w") as fw:
         fw.write("test file contents")
@@ -289,7 +296,7 @@ def test_upload_file_good(tmp_path: Path) -> None:
             "Accept-Encoding": "gzip, deflate",
             "Accept-Language": "en-US,*",
             "Content-Length": str(file_size),
-            "Host": "send-to-kindle-prod.s3.amazonaws.com",
+            "Host": "zme-caps.amazon.com",
             "User-Agent": "Mozilla/5.0",
         }
         assert request.body == b"test file contents"
@@ -302,31 +309,37 @@ def test_upload_file_good(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "format, options, expected_output",
+    "format, options, expected_force_convert",
     [
-        ("mobi", {}, "MOBI"),
-        ("epub", {}, "MOBI"),
-        ("epub", {"force_convert": False}, "MOBI"),
-        ("epub", {"force_convert": True}, "MOBI"),
-        ("pdf", {}, "PDF"),
-        ("pdf", {"force_convert": False}, "PDF"),
-        ("pdf", {"force_convert": True}, "MOBI"),
-        ("PDF", {}, "PDF"),
-        ("PDF", {"force_convert": True}, "MOBI"),
+        ("mobi", {}, False),
+        ("epub", {}, False),
+        ("epub", {"force_convert": False}, False),
+        ("epub", {"force_convert": True}, True),
+        ("pdf", {}, False),
+        ("pdf", {"force_convert": False}, False),
+        ("pdf", {"force_convert": True}, True),
+        ("PDF", {}, False),
+        ("PDF", {"force_convert": True}, True),
     ],
 )
 def test_send_to_kindle_good(
-    signer: Mock, format: str, options: Mapping[str, bool], expected_output: str
+    signer: Mock,
+    mocker: MockerFixture,
+    format: str,
+    options: Mapping[str, bool],
+    expected_force_convert: bool,
 ) -> None:
     """Check that send_to_kindle returns the expected result."""
     targets = ["A", "B"]
     author, title = "test_author", "test_title"
+    file_size = 5688
+    mocker.patch("stkclient.api.time.time_ns", return_value=1_791_823_616_665_123_456)
 
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
     ) -> tuple[int, Mapping[str, Any], str]:
         assert dict(request.headers) == {
-            "Host": "stkservice.amazon.com",
+            "Host": "kd.amazon.com",
             "Accept": "application/json",
             "Content-Type": "application/json",
             "X-Adp-Request-Digest": "test_signature",
@@ -339,16 +352,18 @@ def test_send_to_kindle_good(
         }
         body = json.loads(request.body)
         assert body == {
-            "ClientInfo": api.DEFAULT_CLIENT_INFO,
-            "DocumentMetadata": {
+            "clientInfo": api.DEFAULT_CLIENT_INFO,
+            "documentMetadata": {
                 "author": author,
                 "crc32": 0,
                 "inputFormat": format,
                 "title": title,
             },
             "archive": True,
-            "deliveryMechanism": "WIFI",
-            "outputFormat": expected_output,
+            "fileSize": file_size,
+            "forceConvert": expected_force_convert,
+            "sendTimeMillis": 1_791_823_616_665,
+            "shouldExtractWebContent": False,
             "stkToken": STK_TOKEN_GOOD,
             "targetDevices": targets,
         }
@@ -356,28 +371,79 @@ def test_send_to_kindle_good(
         return 200, response_headers, json.dumps(res)
 
     httpretty.register_uri(
-        httpretty.POST, "https://stkservice.amazon.com/SendToKindle", body=request_callback
+        httpretty.POST,
+        "https://kd.amazon.com/import/kindle-doc/send-to-kindle",
+        body=request_callback,
     )
     res = api.send_to_kindle(
-        signer, STK_TOKEN_GOOD, targets, author=author, title=title, format=format, **options
+        signer,
+        STK_TOKEN_GOOD,
+        targets,
+        author=author,
+        title=title,
+        format=format,
+        file_size=file_size,
+        **options,
     )
     body = {
-        "ClientInfo": api.DEFAULT_CLIENT_INFO,
-        "DocumentMetadata": {
+        "clientInfo": api.DEFAULT_CLIENT_INFO,
+        "documentMetadata": {
             "author": author,
             "crc32": 0,
             "inputFormat": format,
             "title": title,
         },
         "archive": True,
-        "deliveryMechanism": "WIFI",
-        "outputFormat": expected_output,
+        "fileSize": file_size,
+        "forceConvert": expected_force_convert,
+        "sendTimeMillis": 1_791_823_616_665,
+        "shouldExtractWebContent": False,
         "stkToken": STK_TOKEN_GOOD,
         "targetDevices": targets,
     }
     data = json.dumps(body, indent=4)
-    signer.digest_header_for_request.assert_called_with("POST", "/SendToKindle", data)
+    signer.digest_header_for_request.assert_called_with(
+        "POST", "/import/kindle-doc/send-to-kindle", data
+    )
     assert res == model.SendToKindleResponse(sku="7B672AF0FA604BECA8143275166EA316", status_code=0)
+
+
+@pytest.mark.parametrize("status", [403, 500])
+@pytest.mark.parametrize(
+    "operation, path, args, kwargs",
+    [
+        ("get_list_of_owned_devices", "/import/kindle-doc/get-device-list", (), {}),
+        ("get_upload_url", "/import/upload-url", (100,), {}),
+        (
+            "send_to_kindle",
+            "/import/kindle-doc/send-to-kindle",
+            (STK_TOKEN_GOOD, ["device"]),
+            {"author": "Test", "title": "Test", "format": "pdf", "file_size": 100},
+        ),
+    ],
+)
+def test_kindle_docs_http_error(
+    signer: Mock,
+    operation: str,
+    path: str,
+    args: tuple[Any, ...],
+    kwargs: Mapping[str, Any],
+    status: int,
+) -> None:
+    """Surface HTTP failures from each new endpoint as APIError with the response body."""
+
+    def request_callback(
+        request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
+    ) -> tuple[int, Mapping[str, Any], str]:
+        return status, response_headers, '{"message": "upstream error"}'
+
+    httpretty.register_uri(
+        httpretty.POST,
+        "https://kd.amazon.com" + path,
+        body=request_callback,
+    )
+    with pytest.raises(api.APIError, match=f"HTTP Error {status}.*upstream error"):
+        getattr(api, operation)(signer, *args, **kwargs)
 
 
 def test_logout_good(signer: Mock) -> None:

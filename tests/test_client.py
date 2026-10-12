@@ -128,6 +128,7 @@ def test_client_send_file(
         author=test_author,
         title=test_title,
         format="pdf",
+        file_size=len(test_file_contents),
         force_convert=expected_force_convert,
     )
 

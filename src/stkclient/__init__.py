@@ -71,6 +71,7 @@ class Client:
             author=author,
             title=title,
             format=format,
+            file_size=file_size,
             force_convert=force_convert,
         )
         return ret.sku
