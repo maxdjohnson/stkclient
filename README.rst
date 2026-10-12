@@ -132,6 +132,10 @@ Build distributions with ``uv build --no-sources``. Update the package version
 with ``uv version --bump patch`` (or ``minor`` / ``major``), committing the
 updated ``pyproject.toml`` and ``uv.lock`` together.
 
+The ``pre-commit`` session runs Ruff for Python linting, import sorting, syntax
+upgrades, and formatting. Its configuration lives in ``pyproject.toml`` and checks
+for unused or invalid ``noqa`` comments.
+
 CI tests Python 3.11 through 3.15 and runs the newest version on Linux, macOS,
 and Windows. The minimum Python version follows the `Python support schedule`_.
 Maintenance tools run on Python 3.12. The ``audit`` session checks locked runtime,

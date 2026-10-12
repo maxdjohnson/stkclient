@@ -1,7 +1,6 @@
 from http.server import BaseHTTPRequestHandler
 from typing import Any
 
-
 class HTTPrettyRequest(BaseHTTPRequestHandler):
     created_at: Any
     raw_headers: Any
@@ -14,7 +13,9 @@ class HTTPrettyRequest(BaseHTTPRequestHandler):
     path: Any
     querystring: Any
     parsed_body: Any
-    def __init__(self, headers: str, body: str = ..., sock: Any | None = ..., path_encoding: str = ...): ...
+    def __init__(
+        self, headers: str, body: str = ..., sock: Any | None = ..., path_encoding: str = ...
+    ): ...
     @property
     def method(self) -> str: ...
     @property

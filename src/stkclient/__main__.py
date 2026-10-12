@@ -10,7 +10,7 @@ import stkclient
 # Try to import the readline module for improved input() behavior. Without this, pasting a line
 # longer than 1024 chars causes the process to hang on my machine.
 try:
-    import readline  # noqa
+    import readline  # noqa: F401
 except ModuleNotFoundError:
     pass  # not available on windows
 

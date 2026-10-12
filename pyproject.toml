@@ -60,18 +60,8 @@ docs-live = [
 doctest = ["xdoctest[colors]>=1.3.2,<2"]
 lint = [
     "pre-commit>=4.6.2,<5",
-    "flake8>=7.4.1,<8",
-    "black>=26.10.1,<27",
-    "flake8-bandit>=4.1.1,<5",
-    "flake8-bugbear>=26.9.30,<27",
-    "flake8-docstrings>=1.7,<2",
-    "flake8-rst-docstrings>=0.4,<0.5",
-    "pep8-naming>=0.15.1,<0.16",
-    "darglint>=1.8.1,<2",
+    "ruff>=0.16.10,<0.17",
     "pre-commit-hooks>=6.0,<7",
-    "pyupgrade>=3.22,<4",
-    "flake8-isort>=7.0,<8",
-    "isort>=9.0.2,<10",
 ]
 typeguard = [
     {include-group = "test"},
@@ -119,9 +109,19 @@ mypy_path = "$MYPY_CONFIG_FILE_DIR/stubs"
 requires = ["uv_build>=0.13.0,<0.14"]
 build-backend = "uv_build"
 
-[tool.black]
+[tool.ruff]
 line-length = 100
-target-version = ['py311']
+target-version = "py311"
 
-[tool.isort]
-profile = "black"
+[tool.ruff.lint]
+select = ["B", "C90", "D", "E", "F", "I", "N", "S", "UP", "W", "RUF100", "RUF102"]
+ignore = ["E501"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105"]

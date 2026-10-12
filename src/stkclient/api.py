@@ -27,7 +27,7 @@ DEFAULT_CLIENT_INFO = {
 class APIError(ValueError):
     """Represents errors returned in HTTP response of the API."""
 
-    def __init__(self, msg: str, body: bytes | None = None) -> None:  # noqa: B042
+    def __init__(self, msg: str, body: bytes | None = None) -> None:
         """Construct an APIError with a given message and response body."""
         if body is not None:
             try:
@@ -58,9 +58,9 @@ def token_exchange(authorization_code: str, code_verifier: str) -> str:
         "client_id": "658490dfb190e494030082836775981fa23be0c2425441860352ba0f55915b43002d",
         "code_algorithm": "SHA-256",
         "code_verifier": code_verifier,
-        "requested_token_type": "access_token",  # noqa: S105 - OAuth token type
+        "requested_token_type": "access_token",
         "source_token": authorization_code,
-        "source_token_type": "authorization_code",  # noqa: S105 - OAuth grant type
+        "source_token_type": "authorization_code",
     }
     req = urllib.request.Request(
         url="https://api.amazon.com/auth/token",
@@ -74,7 +74,7 @@ def token_exchange(authorization_code: str, code_verifier: str) -> str:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req) as r:  # noqa S310
+        with urllib.request.urlopen(req) as r:  # noqa: S310
             res = json.load(r)
     except urllib.error.HTTPError as e:
         raise APIError(str(e), _text(e)) from e
@@ -99,7 +99,7 @@ def register_device_with_token(access_token: str) -> DeviceInfo:
         "device_serial_number": "ZYSQ37GQ5JQDAIKDZ3WYH6I74MJCVEGG",
         "pid": "D21NN3GG",
         "auth_token": access_token,
-        "auth_token_type": "AccessToken",  # noqa: S105 - protocol value
+        "auth_token_type": "AccessToken",
         "software_version": "253",
         "os_version": "MacOSX_10.14.6_x64",
         "device_model": "Maxs MacBook Pro",
@@ -118,7 +118,7 @@ def register_device_with_token(access_token: str) -> DeviceInfo:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req) as r:  # noqa S310
+        with urllib.request.urlopen(req) as r:  # noqa: S310
             return DeviceInfo.from_xml(r.read())
     except urllib.error.HTTPError as e:
         raise APIError(str(e), _text(e)) from e
@@ -178,7 +178,7 @@ def upload_file(url: str, file_size: int, fp: IO[Any]) -> None:
     u = urllib.parse.urlparse(url)
     if u.hostname is None:
         raise ValueError("Invalid URL")
-    conn = http.client.HTTPSConnection(u.hostname)  # noqa: S309
+    conn = http.client.HTTPSConnection(u.hostname)
     try:
         headers = {
             "Accept-Encoding": "gzip, deflate",
@@ -270,7 +270,7 @@ def logout(signer: Signer) -> None:
         method="GET",
     )
     try:
-        with urllib.request.urlopen(req) as r:  # noqa S310
+        with urllib.request.urlopen(req) as r:  # noqa: S310
             r.read()  # Read and discard
     except urllib.error.HTTPError as e:
         raise APIError(str(e), _text(e)) from e
@@ -298,7 +298,7 @@ def _request(path: str, signer: Signer, body: Mapping[str, Any]) -> Mapping[str,
         },
         method="POST",
     )
-    with urllib.request.urlopen(req) as r:  # noqa S310
+    with urllib.request.urlopen(req) as r:  # noqa: S310
         val: Mapping[str, Any] = json.load(r)
         return val
 
