@@ -1,4 +1,5 @@
 """Command-line interface."""
+
 import argparse
 import os
 import sys
@@ -64,6 +65,11 @@ def arg_parser() -> argparse.ArgumentParser:
     )
     parser_send.add_argument(
         "--format", type=str, required=True, help='file format, for example "mobi" (required)'
+    )
+    parser_send.add_argument(
+        "--force-convert",
+        action="store_true",
+        help="convert PDFs to Kindle format (default: preserve PDF layout)",
     )
     parser_send.add_argument("file", type=Path, help="file to send")
     parser_send.add_argument(
@@ -142,7 +148,14 @@ def send(args: argparse.Namespace) -> None:
     target: List[str] = args.target
     if any(t == "all" for t in args.target):
         target = [d.device_serial_number for d in client.get_owned_devices()]
-    client.send_file(args.file, target, author=args.author, title=args.title, format=args.format)
+    client.send_file(
+        args.file,
+        target,
+        author=args.author,
+        title=args.title,
+        format=args.format,
+        force_convert=args.force_convert,
+    )
 
 
 def logout(args: argparse.Namespace) -> None:

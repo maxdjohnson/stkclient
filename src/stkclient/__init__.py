@@ -42,6 +42,7 @@ class Client:
         author: str,
         title: str,
         format: str,
+        force_convert: bool = False,
     ) -> str:
         """Sends a file to the specified kindle devices.
 
@@ -50,7 +51,9 @@ class Client:
             target_device_serial_numbers: The devices to receive the file.
             author: The author of the document.
             title: The title of the document.
-            format: The format of the document.
+            format: The input format of the document.
+            force_convert: Convert PDFs to Kindle format instead of preserving their layout.
+                Other input formats are always converted to Kindle format.
 
         Returns:
             sku identifier assigned by amazon.
@@ -66,6 +69,7 @@ class Client:
             author=author,
             title=title,
             format=format,
+            force_convert=force_convert,
         )
         return ret.sku
 

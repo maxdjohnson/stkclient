@@ -1,7 +1,9 @@
 """Tests for the stkclient module."""
-from pathlib import Path
-from typing import IO, Any
 
+from pathlib import Path
+from typing import IO, Any, Mapping
+
+import pytest
 from pytest_mock import MockerFixture
 
 from stkclient import Client, OAuth2, model
@@ -62,8 +64,16 @@ def test_client_get_owned_devices(mocker: MockerFixture, device_info: model.Devi
     get_list_of_owned_devices.assert_called_once_with(c._signer)
 
 
+@pytest.mark.parametrize(
+    "options, expected_force_convert",
+    [({}, False), ({"force_convert": False}, False), ({"force_convert": True}, True)],
+)
 def test_client_send_file(
-    mocker: MockerFixture, tmp_path: Path, device_info: model.DeviceInfo
+    mocker: MockerFixture,
+    tmp_path: Path,
+    device_info: model.DeviceInfo,
+    options: Mapping[str, bool],
+    expected_force_convert: bool,
 ) -> None:
     """Test client.send_file."""
     test_upload_url = "test_upload_url"
@@ -100,7 +110,12 @@ def test_client_send_file(
     # Call send_file and check calls to mocks
     c = Client(device_info)
     sku = c.send_file(
-        test_file_path, [test_device_id], author=test_author, title=test_title, format="mobi"
+        test_file_path,
+        [test_device_id],
+        author=test_author,
+        title=test_title,
+        format="pdf",
+        **options,
     )
     assert sku == test_sku
     get_upload_url.assert_called_once_with(c._signer, len(test_file_contents))
@@ -111,7 +126,8 @@ def test_client_send_file(
         [test_device_id],
         author=test_author,
         title=test_title,
-        format="mobi",
+        format="pdf",
+        force_convert=expected_force_convert,
     )
 
 

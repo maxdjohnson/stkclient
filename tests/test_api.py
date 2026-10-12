@@ -281,10 +281,26 @@ def test_upload_file_good(tmp_path: Path) -> None:
     assert httpretty.last_request() is not None
 
 
-def test_send_to_kindle_good(signer: Mock) -> None:
+@pytest.mark.parametrize(
+    "format, options, expected_output",
+    [
+        ("mobi", {}, "MOBI"),
+        ("epub", {}, "MOBI"),
+        ("epub", {"force_convert": False}, "MOBI"),
+        ("epub", {"force_convert": True}, "MOBI"),
+        ("pdf", {}, "PDF"),
+        ("pdf", {"force_convert": False}, "PDF"),
+        ("pdf", {"force_convert": True}, "MOBI"),
+        ("PDF", {}, "PDF"),
+        ("PDF", {"force_convert": True}, "MOBI"),
+    ],
+)
+def test_send_to_kindle_good(
+    signer: Mock, format: str, options: Mapping[str, bool], expected_output: str
+) -> None:
     """Check that send_to_kindle returns the expected result."""
     targets = ["A", "B"]
-    author, title, format = "test_author", "test_title", "mobi"
+    author, title = "test_author", "test_title"
 
     def request_callback(
         request: httpretty.core.HTTPrettyRequest, uri: str, response_headers: Mapping[str, Any]
@@ -312,7 +328,7 @@ def test_send_to_kindle_good(signer: Mock) -> None:
             },
             "archive": True,
             "deliveryMechanism": "WIFI",
-            "outputFormat": "MOBI",
+            "outputFormat": expected_output,
             "stkToken": STK_TOKEN_GOOD,
             "targetDevices": targets,
         }
@@ -323,7 +339,7 @@ def test_send_to_kindle_good(signer: Mock) -> None:
         httpretty.POST, "https://stkservice.amazon.com/SendToKindle", body=request_callback
     )
     res = api.send_to_kindle(
-        signer, STK_TOKEN_GOOD, targets, author=author, title=title, format=format
+        signer, STK_TOKEN_GOOD, targets, author=author, title=title, format=format, **options
     )
     body = {
         "ClientInfo": api.DEFAULT_CLIENT_INFO,
@@ -335,7 +351,7 @@ def test_send_to_kindle_good(signer: Mock) -> None:
         },
         "archive": True,
         "deliveryMechanism": "WIFI",
-        "outputFormat": "MOBI",
+        "outputFormat": expected_output,
         "stkToken": STK_TOKEN_GOOD,
         "targetDevices": targets,
     }

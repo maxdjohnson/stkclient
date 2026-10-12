@@ -81,8 +81,19 @@ Once you have a Client object, you can list devices and send files to specified 
 .. code:: python
 
    devices = client.get_owned_devices()
-   destinations = [d.device_serial_number for d in devices.owned_devices]
-   client.send_file(filepath, destinations, author=author, title=title)
+   destinations = [d.device_serial_number for d in devices]
+   client.send_file(filepath, destinations, author=author, title=title, format="epub")
+
+The ``format`` argument describes the input file. PDFs are delivered with their
+original page layout by default. To convert a PDF to Kindle format, set
+``force_convert=True``:
+
+.. code:: python
+
+   client.send_file(
+       filepath, destinations, author=author, title=title,
+       format="pdf", force_convert=True,
+   )
 
 
 License
