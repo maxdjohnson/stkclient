@@ -131,6 +131,10 @@ To collect and report coverage locally:
    $ uv run --locked coverage run -m pytest
    $ uv run --locked coverage report
 
+The 80% coverage threshold includes branches and applies only to ``stkclient``;
+test modules do not contribute to the total. API tests mock the standard-library HTTP boundary,
+and unmocked network connections fail the test.
+
 Build the same documentation formats as CI with warnings treated as errors:
 
 .. code:: bash
@@ -170,6 +174,10 @@ upgrades, and formatting. Its configuration lives in ``pyproject.toml`` and chec
 for unused or invalid ``noqa`` comments. Install the Git hooks with
 ``uv run --locked pre-commit install``. Local hooks invoke uv directly, so the
 environment does not need to be activated when committing.
+
+YAML, JSON, and Markdown files use a local Prettier hook with an exact npm
+version. Pre-commit manages its Node environment, and Renovate tracks the pin in
+``.pre-commit-config.yaml``.
 
 CI tests Python 3.11 through 3.15 and runs the newest version on Linux, macOS,
 and Windows. The minimum Python version follows the `Python support schedule`_.

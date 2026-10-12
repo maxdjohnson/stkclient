@@ -4,10 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
 from typing import Any
 
-try:
-    from defusedxml.ElementTree import fromstring as xml_parse
-except ImportError:
-    from xml.etree.ElementTree import fromstring as xml_parse
+from defusedxml.ElementTree import fromstring as xml_parse
 
 
 @dataclass(frozen=True)
@@ -45,7 +42,7 @@ class DeviceInfo:
     @staticmethod
     def from_xml(xml: bytes) -> "DeviceInfo":
         """Constructs a DeviceInfo from an XML string."""
-        res = xml_parse(xml)  # noqa: S314
+        res = xml_parse(xml)
         info = {}
         for el in res:
             info[el.tag] = el.text
