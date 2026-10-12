@@ -114,42 +114,10 @@ CI tests Python 3.11 through 3.15 and runs the newest version on Linux, macOS,
 and Windows. The minimum Python version follows the `Python support schedule`_.
 Maintenance tools run on Python 3.12. The ``audit`` session checks locked runtime,
 test, and development dependencies against the PyPI vulnerability database.
-The documentation sessions install ``docs/requirements.txt``, the same
-dependencies as Read the Docs. ``docs-build`` checks HTML, EPUB, and LaTeX output
-with warnings treated as errors; HTML is written to ``docs/_build/html``.
-Read the Docs additionally compiles the LaTeX output into a downloadable PDF.
-To preview the HTML with live reloading, run ``nox -s docs``.
-
-Pull requests also build the release distributions and retain them as the
-``dist`` workflow artifact. Publishing remains limited to pushes to the main
-branch.
+The documentation build treats warnings as errors. Pull requests also build the
+release distributions; publishing remains limited to pushes to the main branch.
 
 .. _Python support schedule: https://devguide.python.org/versions/
-
-
-Documentation and release maintenance
--------------------------------------
-
-Read the Docs builds ``latest`` from ``main``. Check the `documentation build
-history`_ for configuration errors if the docs badge turns red. The ``stable``
-version follows the latest release tag, so fixes on ``main`` only reach it with
-a new release. The old ``v0.1.1`` tag has no successful ``stable`` build; use
-the `latest documentation`_ until a new release is published.
-
-The release workflow publishes version bumps to PyPI and development versions
-to TestPyPI. Development uploads run in a separate job so TestPyPI outages or
-account problems do not block updates to the release-note draft. Upload failures
-still fail the workflow.
-
-Token-based publishing requires two-factor authentication on the account that
-owns the token, separately on PyPI and TestPyPI. Enable it in each account's
-settings and configure the repository secrets ``PYPI_TOKEN`` and
-``TEST_PYPI_TOKEN`` with tokens authorized for ``stkclient``. A TestPyPI 403
-reporting missing two-factor authentication must be fixed in the TestPyPI
-account; changing workflow permissions cannot resolve it.
-
-.. _documentation build history: https://app.readthedocs.org/projects/stkclient/builds/
-.. _latest documentation: https://stkclient.readthedocs.io/en/latest/
 
 
 Related Projects
