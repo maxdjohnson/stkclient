@@ -41,7 +41,7 @@ Features
 Installation
 ------------
 
-You can install *Send To Kindle* via pip_ from PyPI_:
+Python 3.11 or later is required. You can install *Send To Kindle* via pip_ from PyPI_:
 
 .. code:: console
 
@@ -94,6 +94,26 @@ original page layout by default. To convert a PDF to Kindle format, set
        filepath, destinations, author=author, title=title,
        format="pdf", force_convert=True,
    )
+
+
+Development
+-----------
+
+Install the CI tools with Python 3.12, then run the same Nox sessions as CI:
+
+.. code:: console
+
+   $ python3.12 -m pip install -c .github/workflows/constraints.txt poetry poetry-plugin-export nox nox-poetry
+   $ nox -s tests-3.12 mypy typeguard xdoctest docs-build pre-commit audit
+
+CI tests Python 3.11 through 3.15 and runs the newest version on Linux, macOS,
+and Windows. The minimum Python version follows the `Python support schedule`_.
+Maintenance tools run on Python 3.12. The ``audit`` session checks locked runtime,
+test, and development dependencies against the PyPI vulnerability database.
+The documentation build treats warnings as errors. Pull requests also build the
+release distributions; publishing remains limited to pushes to the main branch.
+
+.. _Python support schedule: https://devguide.python.org/versions/
 
 
 License

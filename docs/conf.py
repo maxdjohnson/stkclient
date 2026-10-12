@@ -1,4 +1,5 @@
 """Sphinx configuration."""
+
 from datetime import datetime
 
 project = "Send To Kindle"

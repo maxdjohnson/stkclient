@@ -4,7 +4,6 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 import stkclient
 
@@ -94,7 +93,7 @@ def arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(args: Optional[List[str]] = None) -> None:
+def main(args: list[str] | None = None) -> None:
     """Send To Kindle."""
     parser = arg_parser()
     parsed = parser.parse_args(args)
@@ -145,7 +144,7 @@ def send(args: argparse.Namespace) -> None:
         exit(1)
     with open(client_path) as f:
         client = stkclient.Client.load(f)
-    target: List[str] = args.target
+    target: list[str] = args.target
     if any(t == "all" for t in args.target):
         target = [d.device_serial_number for d in client.get_owned_devices()]
     client.send_file(

@@ -1,7 +1,8 @@
 """Tests for the stkclient module."""
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import IO, Any, Mapping
+from typing import IO, Any
 
 import pytest
 from pytest_mock import MockerFixture

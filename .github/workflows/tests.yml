@@ -4,6 +4,13 @@ on:
   - push
   - pull_request
 
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     name: ${{ matrix.session }} ${{ matrix.python }} / ${{ matrix.os }}
@@ -12,21 +19,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { python: "3.10", os: "ubuntu-latest", session: "pre-commit" }
-          - { python: "3.10", os: "ubuntu-latest", session: "safety" }
-          - { python: "3.10", os: "ubuntu-latest", session: "mypy" }
-          - { python: "3.9", os: "ubuntu-latest", session: "mypy" }
-          - { python: "3.8", os: "ubuntu-latest", session: "mypy" }
-          - { python: "3.7", os: "ubuntu-latest", session: "mypy" }
-          - { python: "3.10", os: "ubuntu-latest", session: "tests" }
-          - { python: "3.9", os: "ubuntu-latest", session: "tests" }
-          - { python: "3.8", os: "ubuntu-latest", session: "tests" }
-          - { python: "3.7", os: "ubuntu-latest", session: "tests" }
-          - { python: "3.7", os: "windows-latest", session: "tests" }
-          - { python: "3.7", os: "macos-latest", session: "tests" }
-          - { python: "3.7", os: "ubuntu-latest", session: "typeguard" }
-          - { python: "3.7", os: "ubuntu-latest", session: "xdoctest" }
-          - { python: "3.10", os: "ubuntu-latest", session: "docs-build" }
+          - { python: "3.12", os: "ubuntu-latest", session: "pre-commit" }
+          - { python: "3.12", os: "ubuntu-latest", session: "audit" }
+          - { python: "3.12", os: "ubuntu-latest", session: "mypy" }
+          - { python: "3.15", os: "ubuntu-latest", session: "tests" }
+          - { python: "3.14", os: "ubuntu-latest", session: "tests" }
+          - { python: "3.13", os: "ubuntu-latest", session: "tests" }
+          - { python: "3.12", os: "ubuntu-latest", session: "tests" }
+          - { python: "3.11", os: "ubuntu-latest", session: "tests" }
+          - { python: "3.15", os: "windows-latest", session: "tests" }
+          - { python: "3.15", os: "macos-latest", session: "tests" }
+          - { python: "3.12", os: "ubuntu-latest", session: "typeguard" }
+          - { python: "3.12", os: "ubuntu-latest", session: "xdoctest" }
+          - { python: "3.12", os: "ubuntu-latest", session: "docs-build" }
 
     env:
       NOXSESSION: ${{ matrix.session }}
@@ -35,122 +40,79 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
-      - name: Set up Python ${{ matrix.python }}
-        uses: actions/setup-python@v4
+      - name: Set up test and tooling interpreters
+        uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python }}
+          python-version: |
+            ${{ matrix.python }}
+            3.12
 
-      - name: Upgrade pip
-        run: |
-          pip install --constraint=.github/workflows/constraints.txt pip
-          pip --version
-
-      - name: Upgrade pip in virtual environments
-        shell: python
-        run: |
-          import os
-          import pip
-
-          with open(os.environ["GITHUB_ENV"], mode="a") as io:
-              print(f"VIRTUALENV_PIP={pip.__version__}", file=io)
-
-      - name: Install Poetry
-        run: |
-          pipx install --pip-args=--constraint=.github/workflows/constraints.txt poetry
-          poetry --version
-
-      - name: Install Nox
-        run: |
-          pipx install --pip-args=--constraint=.github/workflows/constraints.txt nox
-          pipx inject --pip-args=--constraint=.github/workflows/constraints.txt nox nox-poetry
-          nox --version
-
-      - name: Compute pre-commit cache key
-        if: matrix.session == 'pre-commit'
-        id: pre-commit-cache
-        shell: python
-        run: |
-          import hashlib
-          import sys
-
-          python = "py{}.{}".format(*sys.version_info[:2])
-          payload = sys.version.encode() + sys.executable.encode()
-          digest = hashlib.sha256(payload).hexdigest()
-          result = "${{ runner.os }}-{}-{}-pre-commit".format(python, digest[:8])
-
-          print("::set-output name=result::{}".format(result))
+      - name: Install CI tools
+        run: >-
+          python -m pip install --constraint=.github/workflows/constraints.txt
+          pip poetry poetry-plugin-export nox nox-poetry
 
       - name: Restore pre-commit cache
-        uses: actions/cache@v3.0.4
+        uses: actions/cache@v6
         if: matrix.session == 'pre-commit'
         with:
           path: ~/.cache/pre-commit
-          key: ${{ steps.pre-commit-cache.outputs.result }}-${{ hashFiles('.pre-commit-config.yaml') }}
-          restore-keys: |
-            ${{ steps.pre-commit-cache.outputs.result }}-
+          key: pre-commit-${{ runner.os }}-py3.12-${{ hashFiles('.pre-commit-config.yaml', 'poetry.lock') }}
 
       - name: Run Nox
-        run: |
-          nox --force-color --python=${{ matrix.python }}
+        run: nox --force-color --python=${{ matrix.python }} --error-on-missing-interpreters
 
       - name: Upload coverage data
         if: always() && matrix.session == 'tests'
-        uses: "actions/upload-artifact@v3"
+        uses: actions/upload-artifact@v7
         with:
-          name: coverage-data
-          path: ".coverage.*"
+          name: coverage-data-${{ matrix.os }}-${{ matrix.python }}
+          path: .coverage.*
+          include-hidden-files: true
+          if-no-files-found: error
 
       - name: Upload documentation
         if: matrix.session == 'docs-build'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: docs
           path: docs/_build
+          if-no-files-found: error
 
   coverage:
     runs-on: ubuntu-latest
     needs: tests
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
-      - name: Upgrade pip
-        run: |
-          pip install --constraint=.github/workflows/constraints.txt pip
-          pip --version
-
-      - name: Install Poetry
-        run: |
-          pipx install --pip-args=--constraint=.github/workflows/constraints.txt poetry
-          poetry --version
-
-      - name: Install Nox
-        run: |
-          pipx install --pip-args=--constraint=.github/workflows/constraints.txt nox
-          pipx inject --pip-args=--constraint=.github/workflows/constraints.txt nox nox-poetry
-          nox --version
+      - name: Install CI tools
+        run: >-
+          python -m pip install --constraint=.github/workflows/constraints.txt
+          pip poetry poetry-plugin-export nox nox-poetry
 
       - name: Download coverage data
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v8
         with:
-          name: coverage-data
+          pattern: coverage-data-*
+          merge-multiple: true
 
       - name: Combine coverage data and display human readable report
-        run: |
-          nox --force-color --session=coverage
+        run: nox --force-color --session=coverage
 
       - name: Create coverage report
-        run: |
-          nox --force-color --session=coverage -- xml
+        run: nox --force-color --session=coverage -- xml
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v3.1.0
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          fail_ci_if_error: true

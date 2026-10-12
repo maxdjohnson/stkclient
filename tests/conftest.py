@@ -1,18 +1,25 @@
 """Shared fixtures."""
 
-from typing import Generator
+import ssl
+from collections.abc import Generator
 
 import httpretty
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def disable_network_calls() -> Generator[None, None, None]:
+def disable_network_calls(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Mocks network using httpretty."""
     httpretty.enable(verbose=True, allow_net_connect=False)
-    yield
-    httpretty.disable()  # disable afterwards, so that you will have no problems in code that uses that socket module
-    httpretty.reset()  # reset HTTPretty state (clean up registered urls and request history)
+    try:
+        with monkeypatch.context() as patcher:
+            # Python 3.14 binds functools.partial as a method. HTTPretty's
+            # replacement expects only the socket, without an SSLContext receiver.
+            patcher.setattr(ssl.SSLContext, "wrap_socket", staticmethod(ssl.SSLContext.wrap_socket))
+            yield
+    finally:
+        httpretty.disable()
+        httpretty.reset()
 
 
 @pytest.fixture()
