@@ -43,5 +43,6 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           GH_REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          # Step env is evaluated even when the step's condition is false.
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr || '{}').number }}
         run: gh pr merge "$PR_NUMBER" --auto --squash
