@@ -8,6 +8,8 @@
   "labels": ["dependencies"],
   "semanticCommits": "enabled",
   "semanticCommitType": "chore",
+  "automerge": true,
+  "dependencyDashboardApproval": false,
   "automergeType": "pr",
   "platformAutomerge": true,
   "automergeStrategy": "squash",
@@ -32,11 +34,6 @@
     }
   ],
   "packageRules": [
-    {
-      "description": "Merge routine updates only after required GitHub checks pass",
-      "matchUpdateTypes": ["minor", "patch", "pin", "digest", "pinDigest"],
-      "automerge": true
-    },
     {
       "matchManagers": ["pep621"],
       "matchDepTypes": ["dependency-groups"],
@@ -69,17 +66,6 @@
     {
       "matchDepTypes": ["requires-python"],
       "enabled": false
-    },
-    {
-      "description": "Review pre-1.0 minor updates, which can break compatibility",
-      "matchCurrentVersion": "/^0\\./",
-      "matchUpdateTypes": ["minor"],
-      "automerge": false
-    },
-    {
-      "matchUpdateTypes": ["major"],
-      "automerge": false,
-      "dependencyDashboardApproval": true
     }
   ]
 }
