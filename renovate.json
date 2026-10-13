@@ -56,13 +56,13 @@
     },
     {
       "description": "Keep uv CLI, build backend, CI and Read the Docs together",
-      "matchPackageNames": ["uv", "uv_build", "astral-sh/uv"],
+      "matchDepNames": ["uv", "uv_build", "astral-sh/uv"],
       "groupName": "uv toolchain"
     },
     {
       "description": "Python maintenance stays on 3.12; support changes are deliberate",
-      "matchManagers": ["asdf", "pyenv"],
-      "matchPackageNames": ["python"],
+      "matchManagers": ["asdf", "pyenv", "github-actions"],
+      "matchDepNames": ["python"],
       "allowedVersions": "/^3\\.12\\./",
       "groupName": "maintenance Python"
     },
