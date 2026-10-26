@@ -30,6 +30,7 @@ Changelog = "https://github.com/maxdjohnson/stkclient/releases"
 [project.scripts]
 stkclient = "stkclient.__main__:main"
 
+# Pin development tools so Renovate locks the exact release it has approved.
 [dependency-groups]
 dev = [
     {include-group = "audit"},
@@ -40,33 +41,33 @@ dev = [
     {include-group = "typing"},
 ]
 test = [
-    "pytest>=9.1.1,<10",
-    "coverage[toml]>=7.16.2,<8",
-    "pytest-mock>=3.16,<4",
+    "pytest==9.1.1",
+    "coverage[toml]==7.16.2",
+    "pytest-mock==3.16.0",
 ]
-audit = ["pip-audit>=2.10.1,<3"]
+audit = ["pip-audit==2.10.1"]
 docs = [
-    "sphinx>=9.1,<10",
-    "furo>=2025.12.19,<2026",
-    "sphinx-argparse>=0.6.1,<0.7",
+    "sphinx==9.1.0",
+    "furo==2025.12.19",
+    "sphinx-argparse==0.6.1",
 ]
 docs-live = [
     {include-group = "docs"},
-    "sphinx-autobuild>=2025.8.25,<2026",
+    "sphinx-autobuild==2025.8.25",
 ]
-doctest = ["xdoctest[colors]>=1.3.2,<2"]
+doctest = ["xdoctest[colors]==1.3.2"]
 lint = [
-    "pre-commit>=4.6.2,<5",
-    "ruff>=0.16.10,<0.17",
-    "pre-commit-hooks>=6.0,<7",
+    "pre-commit==4.6.2",
+    "ruff==0.16.10",
+    "pre-commit-hooks==6.0.0",
 ]
 typeguard = [
     {include-group = "test"},
-    "typeguard>=4.6,<5",
+    "typeguard==4.6.0",
 ]
 typing = [
     {include-group = "test"},
-    "mypy>=2.4,<3",
+    "mypy==2.4.0",
 ]
 
 [tool.uv]
