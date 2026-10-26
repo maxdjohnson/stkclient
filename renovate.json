@@ -35,6 +35,12 @@
   ],
   "packageRules": [
     {
+      "description": "Pin development tools while keeping runtime library dependencies ranged",
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["dependency-groups"],
+      "rangeStrategy": "pin"
+    },
+    {
       "matchManagers": ["pep621"],
       "matchDepTypes": ["dependency-groups"],
       "matchUpdateTypes": ["minor", "patch"],
@@ -67,5 +73,11 @@
       "matchDepTypes": ["requires-python"],
       "enabled": false
     }
-  ]
+  ],
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "minimumReleaseAge": "0 days",
+    "addLabels": ["security"]
+  }
 }

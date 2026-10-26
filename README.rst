@@ -155,8 +155,8 @@ vulnerability database:
 
 Dependencies live in ``pyproject.toml`` and their resolved versions in
 ``uv.lock``. Commit both files when dependencies change. Use ``uv add`` for
-runtime dependencies, ``uv add --group test`` for test dependencies, and
-``uv lock --upgrade-package NAME`` for targeted updates. Purpose-specific
+runtime dependencies, ``uv add --group test --bounds exact`` for test dependencies,
+and ``uv lock --upgrade-package NAME`` for targeted updates. Purpose-specific
 groups keep CI environments small; the default ``dev`` group includes all
 development tools. For example, ``uv sync --locked --no-default-groups --group
 test --python 3.11`` installs only the package and test tools on Python 3.11.
