@@ -101,7 +101,7 @@ warn_unreachable = true
 mypy_path = "$MYPY_CONFIG_FILE_DIR/stubs"
 
 [build-system]
-requires = ["uv_build>=0.13.0,<0.14"]
+requires = ["uv_build>=0.13.2,<0.14"]
 build-backend = "uv_build"
 
 [tool.ruff]
