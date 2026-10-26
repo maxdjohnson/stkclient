@@ -155,28 +155,11 @@ vulnerability database:
 
 Dependencies live in ``pyproject.toml`` and their resolved versions in
 ``uv.lock``. Commit both files when dependencies change. Use ``uv add`` for
-runtime dependencies, ``uv add --group test --bounds exact`` for test dependencies,
-and ``uv lock --upgrade-package NAME`` for targeted updates. Purpose-specific
+runtime dependencies, ``uv add --group test`` for test dependencies, and
+``uv lock --upgrade-package NAME`` for targeted updates. Purpose-specific
 groups keep CI environments small; the default ``dev`` group includes all
 development tools. For example, ``uv sync --locked --no-default-groups --group
 test --python 3.11`` installs only the package and test tools on Python 3.11.
-
-Development tools use exact versions, and Renovate keeps those pins updated.
-Runtime library dependencies retain compatible version ranges. Exact tool pins
-keep lockfile generation on the release selected by Renovate, rather than a newer
-release allowed by a range. Routine direct-dependency updates wait seven days;
-the cooldown is configured in Renovate, not with uv's ``exclude-newer``, so it
-does not block urgent security fixes during lockfile generation.
-
-Renovate's OSV vulnerability alerts are enabled for direct dependencies. This is
-an experimental Renovate feature; recognized security updates bypass the normal
-schedule and release-age delay, but still need passing CI. Transitive dependencies
-are refreshed by weekly lockfile maintenance and checked by the required CI audit.
-An audit failure does not itself open a Renovate security PR. For a transitive
-security fix, use ``uv lock --upgrade-package NAME==FIXED_VERSION``, rerun the audit
-and tests, and commit the lockfile. After merging, Renovate rebases its open PRs
-onto the repaired base. Use the rebase/retry checkbox if an artifact update remains
-blocked.
 
 Build distributions with ``uv build --no-sources``. Update the package version
 with ``uv version --bump patch`` (or ``minor`` / ``major``), committing the
