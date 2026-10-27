@@ -9,6 +9,8 @@
   "semanticCommits": "enabled",
   "semanticCommitType": "chore",
   "automerge": true,
+  "assignees": ["maxdjohnson"],
+  "assignAutomerge": false,
   "dependencyDashboardApproval": false,
   "automergeType": "pr",
   "platformAutomerge": true,
